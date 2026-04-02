@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Piano Scanner 🎹</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Piano Scanner <span class="emoji">🎹</span></h1>
+    <p class="subtitle">Scan sheet music. Play via MIDI.</p>
+    <button id="btn-settings" class="btn btn-ghost btn-sm settings-toggle" title="Settings">⚙️ Settings</button>
+  </header>
+
+  <!-- ── Settings Panel ── -->
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-inner card">
+      <h2>⚙️ AI Vision Settings</h2>
+      <div class="setting-row">
+        <label for="provider-select">Provider</label>
+        <select id="provider-select" class="select">
+          <option value="gemini">Google Gemini (gemini-2.0-flash)</option>
+          <option value="openai">OpenAI (gpt-4o)</option>
+          <option value="anthropic">Anthropic (claude-sonnet)</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <label for="api-key-input">API Key</label>
+        <input type="password" id="api-key-input" class="text-input" placeholder="Enter your API key" autocomplete="off" />
+        <button id="btn-toggle-key" class="btn btn-ghost btn-sm" title="Show/hide key">👁️</button>
+      </div>
+      <p class="hint">Key is stored in your browser's localStorage only — never sent to any server except the AI provider.</p>
+      <div class="btn-row">
+        <button id="btn-save-settings" class="btn btn-primary btn-sm">Save</button>
+        <button id="btn-close-settings" class="btn btn-ghost btn-sm">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- ── Section 1: Image Upload ── -->
+    <section class="card" id="section-upload">
+      <h2><span class="step">1</span> Upload Sheet Music</h2>
+
+      <div id="drop-zone" class="drop-zone" role="button" tabindex="0"
+           aria-label="Upload sheet music image">
+        <div class="drop-zone-inner">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.5" class="upload-icon">
+            <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
+            <rect x="3" y="16" width="18" height="5" rx="1"/>
+          </svg>
+          <p>Drag &amp; drop or <label for="file-input" class="link">choose a file</label></p>
+          <p class="hint">Or use your camera to snap sheet music</p>
+        </div>
+        <input type="file" id="file-input" accept="image/*" capture="environment" hidden />
+      </div>
+
+      <div id="image-preview-wrap" class="image-preview-wrap hidden">
+        <img id="image-preview" src="" alt="Sheet music preview" />
+        <button id="btn-clear-image" class="btn btn-ghost btn-sm">✕ Clear</button>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-analyze" class="btn btn-primary" disabled>
+          <span id="analyze-spinner" class="spinner hidden"></span>
+          Analyze Sheet Music
+        </button>
+        <button id="btn-demo" class="btn btn-secondary">Load Demo (Amazing Grace)</button>
+      </div>
+    </section>
+
+    <!-- ── Section 2: Detected Notes ── -->
+    <section class="card" id="section-notes">
+      <h2><span class="step">2</span> Detected Notes</h2>
+
+      <div id="note-visual" class="note-visual" aria-live="polite">
+        <p class="placeholder">No notes yet — upload an image or load the demo.</p>
+      </div>
+
+      <details class="json-editor-details">
+        <summary>Edit raw note JSON</summary>
+        <textarea id="json-editor" class="json-editor" spellcheck="false"
+                  placeholder='[{"note":"C4","duration":"quarter","startBeat":0}]'></textarea>
+        <div class="btn-row">
+          <button id="btn-apply-json" class="btn btn-secondary btn-sm">Apply JSON</button>
+          <span id="json-status" class="status-text"></span>
+        </div>
+      </details>
+    </section>
+
+    <!-- ── Section 3: MIDI Connection ── -->
+    <section class="card" id="section-midi">
+      <h2><span class="step">3</span> MIDI Device</h2>
+
+      <div class="midi-row">
+        <select id="midi-device-select" class="select">
+          <option value="">— Select MIDI output —</option>
+        </select>
+        <button id="btn-midi-connect" class="btn btn-primary">Connect</button>
+        <button id="btn-midi-refresh" class="btn btn-ghost btn-sm" title="Refresh device list">⟳</button>
+      </div>
+
+      <div id="midi-status" class="status-badge status-idle">
+        <span class="status-dot"></span>
+        <span id="midi-status-text">Not connected</span>
+      </div>
+
+      <p class="hint">
+        Make sure your <strong>Yamaha MD-BT01</strong> is powered on and paired with this device.
+        Use Chrome or Edge — Web MIDI is not supported in Firefox or Safari.
+      </p>
+    </section>
+
+    <!-- ── Section 4: Playback Controls ── -->
+    <section class="card" id="section-playback">
+      <h2><span class="step">4</span> Playback</h2>
+
+      <div class="transport">
+        <button id="btn-play" class="btn btn-primary transport-btn" disabled title="Play">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
+        <button id="btn-pause" class="btn btn-secondary transport-btn hidden" title="Pause">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+          </svg>
+        </button>
+        <button id="btn-stop" class="btn btn-ghost transport-btn" disabled title="Stop">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="bpm-row">
+        <label for="bpm-slider" class="bpm-label">
+          Tempo: <strong id="bpm-display">80</strong> BPM
+        </label>
+        <input type="range" id="bpm-slider" min="40" max="200" value="80" class="range-input" />
+      </div>
+
+      <div id="playback-progress" class="progress-wrap">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+
+      <p id="playback-status" class="status-text center">Ready</p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Piano Scanner · Web MIDI + AI Vision · <a href="README.md" target="_blank">README</a></p>
+  </footer>
+
+  <script src="ocr.js"></script>
+  <script src="midi.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
