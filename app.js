@@ -122,6 +122,9 @@
     document.addEventListener("midi:progress", e => {
       progressBar.style.width = (e.detail.ratio * 100).toFixed(1) + "%";
     });
+    document.addEventListener("midi:status", e => {
+      setMidiStatus("idle", e.detail.message);
+    });
     document.addEventListener("midi:ended", () => {
       setPlaybackStopped();
       playbackStatus.textContent = "Finished ✓";
@@ -242,9 +245,13 @@
       opt.disabled    = true;
       midiDeviceSelect.appendChild(opt);
     }
+    // Auto-select BLE if it's the only real option
+    if (outputs.length === 1 && outputs[0].type === "ble") {
+      midiDeviceSelect.value = "__ble__";
+    }
   }
 
-  function toggleMidiConnection() {
+  async function toggleMidiConnection() {
     if (MidiPlayer.isConnected()) {
       MidiPlayer.disconnect();
     } else {
@@ -253,8 +260,11 @@
         setMidiStatus("error", "Please select a MIDI device first.");
         return;
       }
-      const ok = MidiPlayer.connect(id);
-      if (!ok) setMidiStatus("error", "Could not connect to device.");
+      setMidiStatus("idle", "Connecting...");
+      const ok = await MidiPlayer.connect(id);
+      if (!ok && !MidiPlayer.isConnected()) {
+        setMidiStatus("error", "Could not connect to device.");
+      }
     }
   }
 
