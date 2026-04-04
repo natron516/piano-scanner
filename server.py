@@ -237,15 +237,16 @@ def analyze():
         os.makedirs(output_dir, exist_ok=True)
 
         try:
-            # Get the venv python path
-            venv_python = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "python"
+            # Use HOMR CLI for OMR (more accurate, actively maintained)
+            homr_bin = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "homr"
             )
             result = subprocess.run(
-                [venv_python, "-m", "oemer", img_path, "-o", output_dir],
+                [homr_bin, img_path],
                 capture_output=True,
                 text=True,
-                timeout=120,
+                timeout=300,  # 5 minutes — complex scores take time
+                cwd=output_dir,
             )
 
             if result.returncode != 0:
@@ -253,9 +254,11 @@ def analyze():
                     "error": f"oemer failed: {result.stderr[-500:] if result.stderr else 'unknown error'}"
                 }), 500
 
-            # Find the MusicXML output
+            # Find the MusicXML output — HOMR outputs next to the input or in cwd
             xml_files = list(Path(output_dir).glob("**/*.musicxml")) + \
-                        list(Path(output_dir).glob("**/*.xml"))
+                        list(Path(output_dir).glob("**/*.xml")) + \
+                        list(Path(tmpdir).glob("**/*.musicxml")) + \
+                        list(Path(tmpdir).glob("**/*.xml"))
 
             if not xml_files:
                 return jsonify({"error": "oemer produced no MusicXML output"}), 500
@@ -273,7 +276,7 @@ def analyze():
             })
 
         except subprocess.TimeoutExpired:
-            return jsonify({"error": "oemer timed out (120s limit)"}), 500
+            return jsonify({"error": "oemer timed out (5min limit)"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

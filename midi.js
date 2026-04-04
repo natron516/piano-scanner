@@ -325,6 +325,72 @@ const MidiPlayer = (() => {
     emit("midi:progress", { ratio: 0 });
   }
 
+  // ── Chord Playback ────────────────────────────────────────────────────
+  let chordPlaybackCancelled = false;
+  let chordPlaying = false;
+
+  async function playChord(midiNotes, durationMs) {
+    if (!isConnected()) return;
+    const velocity = 75;
+    midiNotes.forEach(n => sendNoteOn(n, velocity));
+    return new Promise(resolve => {
+      setTimeout(() => {
+        midiNotes.forEach(n => sendNoteOff(n));
+        resolve();
+      }, Math.max(50, durationMs));
+    });
+  }
+
+  async function playChordProgression(chords, bpmVal) {
+    if (!isConnected()) {
+      emit('midi:error', { message: 'No MIDI device connected.' });
+      return;
+    }
+    if (!chords || chords.length === 0) {
+      emit('midi:error', { message: 'No chords to play.' });
+      return;
+    }
+
+    chordPlaybackCancelled = false;
+    chordPlaying = true;
+    const bpmToUse = bpmVal || 80;
+    const msPerBeat = (60 / bpmToUse) * 1000;
+
+    for (let i = 0; i < chords.length; i++) {
+      if (chordPlaybackCancelled) break;
+      const chord = chords[i];
+      const midiNotes = (chord.notes || [])
+        .map(n => (typeof ChordMaker !== 'undefined' ? ChordMaker.noteToMidi(n) : null))
+        .filter(n => n !== null);
+      const beats = chord.beats || 4;
+      const holdMs = beats * msPerBeat * 0.92;
+      const gapMs  = beats * msPerBeat * 0.08;
+
+      emit('midi:chord-start', { index: i, chord });
+      await playChord(midiNotes, holdMs);
+
+      if (!chordPlaybackCancelled && i < chords.length - 1) {
+        await new Promise(r => setTimeout(r, gapMs));
+      }
+    }
+
+    chordPlaying = false;
+    if (!chordPlaybackCancelled) {
+      emit('midi:chord-progression-ended');
+    }
+  }
+
+  function stopChordPlayback() {
+    chordPlaybackCancelled = true;
+    chordPlaying = false;
+    if (isConnected()) allNotesOff();
+    emit('midi:chord-progression-ended');
+  }
+
+  function isChordPlaying() {
+    return chordPlaying;
+  }
+
   // ── Event helper ──────────────────────────────────────────────────────
   function emit(name, detail = {}) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
@@ -341,5 +407,9 @@ const MidiPlayer = (() => {
     pause,
     resume,
     stop,
+    playChord,
+    playChordProgression,
+    stopChordPlayback,
+    isChordPlaying,
   };
 })();

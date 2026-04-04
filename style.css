@@ -652,6 +652,236 @@ footer a:hover { text-decoration: underline; }
 
 .text-input:focus { border-color: var(--accent); }
 
+/* ── Tab Bar ────────────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+.tab-btn {
+  padding: 0.65rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+  color: var(--text);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.tab-content.hidden {
+  display: none !important;
+}
+
+/* ── Chord Maker ─────────────────────────────────────────────────────────── */
+.chord-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chord-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.chord-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 90px;
+}
+
+.chord-control-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chord-btn-row {
+  margin-top: 0.25rem;
+}
+
+.chord-error {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(240, 98, 96, 0.15);
+  border: 1px solid rgba(240, 98, 96, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--red);
+  font-size: 0.85rem;
+}
+
+/* ── Chord Display Header ────────────────────────────────────────────────── */
+.chord-display-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chord-display-header h2 {
+  margin-bottom: 0;
+}
+
+.chord-display-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chord-bpm-row {
+  margin-bottom: 1rem;
+}
+
+.chord-hint {
+  margin-top: 0.75rem;
+  text-align: center;
+}
+
+/* ── Chord Cards ─────────────────────────────────────────────────────────── */
+.chord-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-start;
+}
+
+.chord-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 1rem 0.85rem 0.75rem;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  min-width: 90px;
+  flex: 1;
+  max-width: 140px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.2s, transform 0.1s;
+  user-select: none;
+}
+
+.chord-card:hover {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.chord-card:active {
+  transform: translateY(0);
+}
+
+.chord-card.playing {
+  border-color: var(--accent);
+  background: rgba(108, 99, 255, 0.2);
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px var(--accent-glow);
+  transform: scale(1.04);
+}
+
+.chord-card.locked {
+  border-color: var(--yellow);
+  background: rgba(245, 197, 66, 0.08);
+}
+
+.chord-card.locked:hover {
+  border-color: var(--yellow);
+  background: rgba(245, 197, 66, 0.15);
+}
+
+.chord-card.locked.playing {
+  border-color: var(--yellow);
+  box-shadow: 0 0 20px rgba(245, 197, 66, 0.3);
+}
+
+/* Chord card sections */
+.chord-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  text-align: center;
+}
+
+.chord-roman {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-style: italic;
+  text-align: center;
+}
+
+.chord-notes {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.chord-lock-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  opacity: 0.35;
+  padding: 2px;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.chord-lock-btn:hover {
+  opacity: 1;
+}
+
+.chord-card.locked .chord-lock-btn {
+  opacity: 1;
+}
+
+.chord-arrow {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  align-self: center;
+  flex-shrink: 0;
+  display: none; /* shown via JS between cards */
+}
+
 /* ── Utility ────────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 

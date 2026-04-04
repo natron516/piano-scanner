@@ -54,6 +54,8 @@
     });
     refreshMidiOutputs();
     wireEvents();
+    initTabs();
+    initChordMaker();
   }
 
   function wireEvents() {
@@ -434,6 +436,195 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  // ── Tab Switching ────────────────────────────────────────────────────────
+  function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + tabId).classList.remove('hidden');
+      });
+    });
+  }
+
+  // ── Chord Maker ──────────────────────────────────────────────────────────
+  let currentChords = [];
+
+  function initChordMaker() {
+    const btnGenerate    = document.getElementById('btn-chord-generate');
+    const btnRegenerate  = document.getElementById('btn-chord-regenerate');
+    const btnPlayAll     = document.getElementById('btn-chord-play-all');
+    const btnChordStop   = document.getElementById('btn-chord-stop');
+    const chordBpmSlider = document.getElementById('chord-bpm-slider');
+    const chordBpmDisplay = document.getElementById('chord-bpm-display');
+
+    chordBpmSlider.addEventListener('input', () => {
+      chordBpmDisplay.textContent = chordBpmSlider.value;
+    });
+
+    btnGenerate.addEventListener('click', () => generateChords(false));
+    btnRegenerate.addEventListener('click', () => generateChords(true));
+
+    btnPlayAll.addEventListener('click', () => {
+      if (!MidiPlayer.isConnected()) {
+        showChordError('No MIDI device connected. Connect one in the Scanner tab first.');
+        return;
+      }
+      const bpm = parseInt(chordBpmSlider.value, 10);
+      MidiPlayer.playChordProgression(currentChords, bpm);
+      btnPlayAll.classList.add('hidden');
+      btnChordStop.classList.remove('hidden');
+    });
+
+    btnChordStop.addEventListener('click', () => {
+      MidiPlayer.stopChordPlayback();
+      btnChordStop.classList.add('hidden');
+      btnPlayAll.classList.remove('hidden');
+      clearChordHighlights();
+    });
+
+    document.addEventListener('midi:chord-start', e => {
+      highlightChordCard(e.detail.index);
+    });
+
+    document.addEventListener('midi:chord-progression-ended', () => {
+      btnChordStop.classList.add('hidden');
+      btnPlayAll.classList.remove('hidden');
+      clearChordHighlights();
+    });
+  }
+
+  async function generateChords(keepLocked) {
+    const btnGenerate    = document.getElementById('btn-chord-generate');
+    const btnRegenerate  = document.getElementById('btn-chord-regenerate');
+    const chordSpinner   = document.getElementById('chord-spinner');
+    const chordError     = document.getElementById('chord-error');
+    const sectionDisplay = document.getElementById('section-chord-display');
+
+    const key   = document.getElementById('chord-key').value;
+    const style = document.getElementById('chord-style').value;
+    const mood  = document.getElementById('chord-mood').value;
+    const bars  = parseInt(document.getElementById('chord-bars').value, 10);
+
+    const lockedChords = keepLocked
+      ? currentChords.map(c => c.locked ? c : null)
+      : [];
+
+    chordError.classList.add('hidden');
+    btnGenerate.disabled = true;
+    btnRegenerate.disabled = true;
+    chordSpinner.classList.remove('hidden');
+
+    try {
+      const chords = await ChordMaker.generateProgression({ key, style, mood, bars, lockedChords });
+      currentChords = chords;
+      renderChordCards(chords);
+      sectionDisplay.classList.remove('hidden');
+      btnRegenerate.disabled = false;
+    } catch (err) {
+      showChordError(err.message);
+    } finally {
+      btnGenerate.disabled = false;
+      chordSpinner.classList.add('hidden');
+    }
+  }
+
+  function renderChordCards(chords) {
+    const container = document.getElementById('chord-cards');
+    container.innerHTML = '';
+
+    const colors = [
+      '#6c63ff', '#3dd68c', '#f5c542', '#f06260',
+      '#63b3ff', '#ff63b3', '#63ffd8', '#ff9f63'
+    ];
+
+    chords.forEach((chord, i) => {
+      const color = colors[i % colors.length];
+
+      if (i > 0) {
+        const arrow = document.createElement('div');
+        arrow.style.cssText = 'color:var(--text-muted);font-size:1.2rem;align-self:center;flex-shrink:0;';
+        arrow.textContent = '\u2192';
+        container.appendChild(arrow);
+      }
+
+      const card = document.createElement('div');
+      card.className = 'chord-card' + (chord.locked ? ' locked' : '');
+      card.dataset.index = i;
+
+      const lockBtn = document.createElement('button');
+      lockBtn.className = 'chord-lock-btn';
+      lockBtn.title = chord.locked ? 'Unlock chord' : 'Lock chord';
+      lockBtn.textContent = chord.locked ? '\uD83D\uDD12' : '\uD83D\uDD13';
+      lockBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        chord.locked = !chord.locked;
+        lockBtn.textContent = chord.locked ? '\uD83D\uDD12' : '\uD83D\uDD13';
+        lockBtn.title = chord.locked ? 'Unlock chord' : 'Lock chord';
+        card.classList.toggle('locked', chord.locked);
+      });
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'chord-name';
+      nameEl.textContent = chord.name;
+      nameEl.style.color = color;
+
+      const romanEl = document.createElement('div');
+      romanEl.className = 'chord-roman';
+      romanEl.textContent = chord.roman || '';
+      romanEl.style.color = color;
+      romanEl.style.opacity = '0.8';
+
+      const notesEl = document.createElement('div');
+      notesEl.className = 'chord-notes';
+      notesEl.textContent = (chord.notes || []).join('  ');
+
+      card.appendChild(lockBtn);
+      card.appendChild(nameEl);
+      card.appendChild(romanEl);
+      card.appendChild(notesEl);
+
+      card.addEventListener('click', () => {
+        if (!MidiPlayer.isConnected()) {
+          showChordError('No MIDI device connected. Connect one in the Scanner tab first.');
+          return;
+        }
+        const midiNotes = (chord.notes || [])
+          .map(n => ChordMaker.noteToMidi(n))
+          .filter(n => n !== null);
+        if (midiNotes.length === 0) return;
+
+        const bpm = parseInt(document.getElementById('chord-bpm-slider').value, 10);
+        const msPerBeat = (60 / bpm) * 1000;
+        const holdMs = (chord.beats || 4) * msPerBeat * 0.85;
+
+        highlightChordCard(i);
+        MidiPlayer.playChord(midiNotes, holdMs);
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function highlightChordCard(index) {
+    const allCards = document.querySelectorAll('.chord-card');
+    allCards.forEach((c, i) => {
+      c.classList.toggle('playing', i === index);
+    });
+  }
+
+  function clearChordHighlights() {
+    document.querySelectorAll('.chord-card').forEach(c => c.classList.remove('playing'));
+  }
+
+  function showChordError(msg) {
+    const el = document.getElementById('chord-error');
+    el.textContent = '\u26A0\uFE0F ' + msg;
+    el.classList.remove('hidden');
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────
