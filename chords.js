@@ -44,29 +44,39 @@ const ChordMaker = (() => {
       ? `\n\nIMPORTANT — These chord positions are LOCKED and must be preserved exactly as-is:\n${lockedPositions.join('\n')}\nOnly generate chords for the unlocked positions.`
       : '';
 
-    const prompt = `You are a professional music composer. Generate a ${bars}-bar chord progression in the key of ${key} major with a ${mood} mood and ${style} style.
+    const styleGuide = {
+      pop: 'Use progressions like: I-V-vi-IV, vi-IV-I-V, I-IV-vi-V. Add 7ths sparingly. Think Ed Sheeran, Adele, Coldplay.',
+      jazz: 'Use ii-V-I movements, tritone subs, secondary dominants, diminished passing chords. Think Bill Evans, Coltrane. Use maj7, min7, dom7, m7b5, dim7, 9, 13 chords. Voice lead smoothly.',
+      gospel: 'Use rich extended chords: maj7, min9, dom11, add9. Lots of 2-5-1 movement, passing diminished chords, chromatic bass movement. Think Kirk Franklin, Fred Hammond. Example: Cmaj9 - Am11 - Dm9 - G13 - Cmaj9.',
+      classical: 'Use functional harmony: I-IV-V-I, vi-ii-V-I, with suspensions, passing tones, and Neapolitan/augmented 6th chords for color.',
+      'lo-fi': 'Use jazzy extended chords with a lazy feel: maj7, min7, dom9, add9. Borrow chords from parallel minor. Think Nujabes, lo-fi hip hop. Example: Dmaj7 - Gmaj7 - Bm7 - F#m7 - Em9.',
+      worship: 'Use modern worship progressions: I-IV-vi-V with sus2, sus4, add9 chords. Think Bethel, Hillsong, Elevation. Keep it open and anthemic. Use inversions for smooth bass movement.',
+    };
 
-Return ONLY a valid JSON array — no markdown fences, no explanation, just the raw JSON array.
+    const guide = styleGuide[style] || styleGuide.pop;
 
-Each chord object must have exactly these fields:
-- "name": chord name string (e.g. "Cmaj7", "Am7", "G7", "Fmaj9")
-- "notes": array of note-name strings with octave numbers for piano voicing (e.g. ["C3","E3","G3","B3"]) — spread across octaves 3-5 for a full sound, avoid all notes in one octave
-- "roman": Roman numeral analysis string (e.g. "Imaj7", "vim7", "V7", "IVmaj9")
-- "beats": integer number of beats this chord lasts (4 for a whole bar in 4/4)
+    const prompt = `You are a world-class songwriter and music theory expert. Generate a ${bars}-bar chord progression in the key of ${key} with a ${mood} mood in ${style} style.
 
-Rules:
-- Generate exactly ${bars} chord objects
-- Use idiomatic ${style} harmony — include extensions (7ths, 9ths, sus chords) as appropriate for the style
-- Make it musically interesting with good voice leading
-- The progression should feel complete and loop-able
-- For gospel/worship: use lush voicings with 7ths and 9ths
-- For jazz: use complex extensions, tritone subs, secondary dominants
-- For pop: keep it singable with clear tonal center
-- For lo-fi: use jazzy chords in a relaxed, lazy feel
-- For classical: use functional harmony with passing chords${lockedSection}
+STYLE GUIDE: ${guide}
 
-Example output format:
-[{"name":"Cmaj7","notes":["C3","E3","G3","B3"],"roman":"Imaj7","beats":4},{"name":"Am7","notes":["A2","E3","G3","C4"],"roman":"vim7","beats":4}]`;
+Return ONLY a valid JSON array — no markdown, no explanation, just raw JSON.
+
+Each chord: {"name":"Cmaj7","notes":["C3","E3","G3","B3"],"roman":"Imaj7","beats":4}
+
+Fields:
+- name: chord symbol (e.g. Cmaj7, Am9, Dm7, G7sus4, Bb/D)
+- notes: 4-5 note piano voicing with octave numbers. Bass note in octave 2-3, upper voices in octave 3-5. Use proper voice leading between chords — move each voice to the nearest available note.
+- roman: Roman numeral (e.g. Imaj7, ii7, V7, IVadd9, bVII)
+- beats: 4 (one bar of 4/4)
+
+CRITICAL:
+- Do NOT just repeat I-IV-V-I. Be creative and use the style guide.
+- Use INVERSIONS for smooth bass lines (e.g. C/E, Am/C, G/B)
+- Vary the rhythm: some chords can last 2 bars (beats:8) or half a bar (beats:2)
+- End on or resolve toward the I chord
+- Make it sound like a REAL song, not a theory exercise${lockedSection}
+
+Generate exactly ${bars} bars worth of chords (total beats = ${bars * 4}).`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
