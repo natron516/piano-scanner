@@ -104,8 +104,17 @@ Example output format:
       rawText = parts.map(p => p.text || '').join('\n');
     }
 
-    // Strip markdown fences
-    let cleaned = rawText.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/gi, '').trim();
+    console.info('[ChordMaker] Raw AI text:', rawText.substring(0, 300));
+
+    // Strip markdown fences aggressively
+    let cleaned = rawText
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+    
+    // Remove any non-JSON text before the array
+    // Some responses have explanation text before/after the JSON
+    cleaned = cleaned.trim();
 
     // Extract JSON array
     const arrayStart = cleaned.indexOf('[');
@@ -127,8 +136,16 @@ Example output format:
       jsonStr = cleaned.substring(arrayStart, arrayEnd + 1);
     }
 
-    // Fix trailing commas
-    jsonStr = jsonStr.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}');
+    // Fix common JSON issues
+    jsonStr = jsonStr
+      .replace(/,\s*]/g, ']')        // trailing commas before ]
+      .replace(/,\s*}/g, '}')         // trailing commas before }
+      .replace(/[\u201C\u201D]/g, '"') // smart quotes → regular quotes
+      .replace(/[\u2018\u2019]/g, "'") // smart single quotes
+      .replace(/\\'/g, "'")           // escaped single quotes in values
+      .replace(/'([^']*)'/g, '"$1"'); // single-quoted strings → double-quoted
+    
+    console.info('[ChordMaker] Cleaned JSON:', jsonStr.substring(0, 200));
 
     let chords;
     try {
