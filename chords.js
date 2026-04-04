@@ -91,19 +91,60 @@ Example output format:
     }
 
     const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    // Extract JSON array from the response
-    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('Could not parse chord JSON from AI response. Try again.');
+    // Gemini 2.5 thinking models return multiple parts — find the one with JSON
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    let rawText = '';
+    for (const part of parts) {
+      if (part.text && part.text.includes('[')) {
+        rawText = part.text;
+        break;
+      }
     }
+    if (!rawText) {
+      rawText = parts.map(p => p.text || '').join('\n');
+    }
+
+    // Strip markdown fences
+    let cleaned = rawText.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/gi, '').trim();
+
+    // Extract JSON array
+    const arrayStart = cleaned.indexOf('[');
+    const arrayEnd = cleaned.lastIndexOf(']');
+    if (arrayStart === -1) {
+      throw new Error('No chord data found in AI response. Try again.');
+    }
+
+    let jsonStr;
+    if (arrayEnd === -1 || arrayEnd <= arrayStart) {
+      // Truncated — salvage
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (lastBrace > arrayStart) {
+        jsonStr = cleaned.substring(arrayStart, lastBrace + 1) + ']';
+      } else {
+        throw new Error('AI response was truncated. Try again.');
+      }
+    } else {
+      jsonStr = cleaned.substring(arrayStart, arrayEnd + 1);
+    }
+
+    // Fix trailing commas
+    jsonStr = jsonStr.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}');
 
     let chords;
     try {
-      chords = JSON.parse(jsonMatch[0]);
+      chords = JSON.parse(jsonStr);
     } catch (e) {
-      throw new Error('Invalid JSON in AI response: ' + e.message);
+      // Try to salvage partial
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (lastBrace > 0) {
+        try {
+          chords = JSON.parse(jsonStr.substring(0, lastBrace + 1) + ']');
+        } catch (e2) {
+          throw new Error('Could not parse chord JSON: ' + e.message);
+        }
+      } else {
+        throw new Error('Could not parse chord JSON: ' + e.message);
+      }
     }
 
     if (!Array.isArray(chords) || chords.length === 0) {
