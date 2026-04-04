@@ -348,6 +348,31 @@ footer a:hover { text-decoration: underline; }
 .status-text.err { color: var(--red); }
 .status-text.center { text-align: center; }
 
+.analysis-banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  min-height: 1.5rem;
+}
+
+.analysis-banner.idle {
+  background: rgba(108, 99, 255, 0.15);
+  color: var(--accent);
+}
+
+.analysis-banner.ok {
+  background: rgba(61, 214, 140, 0.15);
+  color: var(--green);
+}
+
+.analysis-banner.err {
+  background: rgba(240, 98, 96, 0.15);
+  color: var(--red);
+}
+
 /* ── MIDI ───────────────────────────────────────────────────────────────── */
 .midi-row {
   display: flex;

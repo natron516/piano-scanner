@@ -155,15 +155,35 @@
   async function runAnalysis() {
     if (!currentFile) return;
     setAnalyzing(true);
+    setAnalysisStatus("Sending to AI...", "idle");
     try {
       const notes = await SheetOCR.analyzeImage(currentFile);
       loadNotes(notes);
+      setAnalysisStatus(notes.length + " notes detected ✓", "ok");
     } catch (err) {
-      console.error(err);
-      jsonStatus.textContent = "Analysis failed: " + err.message;
-      jsonStatus.className   = "status-text err";
+      console.error("[Analysis Error]", err);
+      setAnalysisStatus("Error: " + err.message, "err");
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  function setAnalysisStatus(msg, type) {
+    // Show status in both the visible area and JSON status
+    jsonStatus.textContent = msg;
+    jsonStatus.className   = "status-text " + (type || "");
+    // Also show above the note visual so it's always visible
+    let banner = document.getElementById("analysis-banner");
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.id = "analysis-banner";
+      banner.className = "analysis-banner";
+      noteVisual.parentNode.insertBefore(banner, noteVisual);
+    }
+    banner.textContent = msg;
+    banner.className = "analysis-banner " + (type || "");
+    if (type === "ok") {
+      setTimeout(() => { banner.textContent = ""; banner.className = "analysis-banner"; }, 5000);
     }
   }
 
