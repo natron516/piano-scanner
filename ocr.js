@@ -200,11 +200,23 @@ Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-q
 
     // Extract JSON array from any surrounding text
     const arrayStart = cleaned.indexOf("[");
-    const arrayEnd   = cleaned.lastIndexOf("]");
-    if (arrayStart === -1 || arrayEnd === -1) {
+    if (arrayStart === -1) {
       throw new Error("No JSON array found in AI response. Got: " + cleaned.substring(0, 200));
     }
-    cleaned = cleaned.substring(arrayStart, arrayEnd + 1);
+    const arrayEnd = cleaned.lastIndexOf("]");
+    if (arrayEnd === -1 || arrayEnd <= arrayStart) {
+      // Truncated response — no closing bracket. Try to salvage.
+      cleaned = cleaned.substring(arrayStart);
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (lastBrace > 0) {
+        cleaned = cleaned.substring(0, lastBrace + 1) + "]";
+        console.warn("[SheetOCR] Response truncated — salvaging partial notes.");
+      } else {
+        throw new Error("AI response was truncated before any complete notes.");
+      }
+    } else {
+      cleaned = cleaned.substring(arrayStart, arrayEnd + 1);
+    }
 
     // Fix trailing commas before ]
     cleaned = cleaned.replace(/,\s*]/g, "]");
