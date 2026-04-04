@@ -83,29 +83,42 @@ const SheetOCR = (() => {
   // ── The prompt sent to the AI vision model ─────────────────────────────
   const SYSTEM_PROMPT = `You are an expert music transcription AI. Your job is to read sheet music from an image and output precise note data.
 
-STEP 1 — Analyze the score:
-- Identify the clef (treble/bass), key signature, and time signature FIRST.
-- Note the key signature sharps/flats and apply them throughout unless a natural sign overrides.
-- For grand staff (treble + bass), read treble clef (right hand) first, then bass clef (left hand) separately.
+This is a typical hymnal/vocal arrangement with THREE staves per system:
+1. TOP STAFF (treble clef) = Melody / vocal line
+2. MIDDLE STAFF (treble clef) = Piano right hand
+3. BOTTOM STAFF (bass clef) = Piano left hand
 
-STEP 2 — Read each measure left to right:
-- Identify each note's pitch using the staff lines and spaces. Remember:
-  - Treble clef lines bottom to top: E4 G4 B4 D5 F5. Spaces: F4 A4 C5 E5.
-  - Bass clef lines bottom to top: G2 B2 D3 F3 A3. Spaces: A2 C3 E3 G3.
-  - Middle C (C4) is one ledger line below treble staff or one above bass staff.
-- Identify duration from note appearance: whole (open, no stem), half (open, stem), quarter (filled, stem), eighth (filled, stem, 1 flag/beam), sixteenth (filled, stem, 2 flags/beams).
+If there are only two staves (grand staff), treat them as:
+1. Top = right hand (treble clef)
+2. Bottom = left hand (bass clef)
+
+STAFF LINE REFERENCE:
+- Treble clef lines bottom to top: E4 G4 B4 D5 F5. Spaces: F4 A4 C5 E5.
+- Bass clef lines bottom to top: G2 B2 D3 F3 A3. Spaces: A2 C3 E3 G3.
+- Middle C (C4) is one ledger line below treble staff or one above bass staff.
+
+RULES:
+- Read each staff separately, measure by measure, left to right.
+- Identify duration from note appearance: whole (open, no stem), half (open, stem), quarter (filled, stem), eighth (filled, stem, 1 flag/beam), sixteenth (2 flags/beams).
 - Dotted notes: "dotted-half" = 3 beats, "dotted-quarter" = 1.5 beats.
 - Rests: do NOT emit a note, but advance startBeat by the rest's duration.
 - Ties: combine tied notes into one longer note.
+- For chords (multiple notes at same beat on same staff), emit each note separately with same startBeat and same part.
+- Apply key signature sharps/flats throughout unless a natural sign overrides.
 
-STEP 3 — Calculate startBeat:
-- Beat 0 = the very first note.
-- Each subsequent note's startBeat = previous note's startBeat + previous note's duration in beats.
+CALCULATE startBeat:
+- Beat 0 = the very first beat of the piece.
+- Each measure starts at the cumulative beat count.
 - Quarter = 1 beat, half = 2, whole = 4, eighth = 0.5, sixteenth = 0.25, dotted-half = 3, dotted-quarter = 1.5.
-- For chords (simultaneous notes), all notes share the same startBeat.
 
-OUTPUT FORMAT — Return ONLY a raw JSON array. No markdown fences, no explanation, no thinking text.
-Each element: { "note": "C4", "duration": "quarter", "startBeat": 0 }
+OUTPUT FORMAT — Return ONLY a raw JSON array. No markdown fences, no explanation, no thinking.
+Each element: { "note": "C4", "duration": "quarter", "startBeat": 0, "part": "melody" }
+
+The "part" field MUST be one of: "melody", "right", "left"
+- "melody" = top vocal/melody staff
+- "right" = piano right hand (middle staff or top staff if only grand staff)
+- "left" = piano left hand (bass clef, bottom staff)
+
 Valid durations: whole, dotted-half, half, dotted-quarter, quarter, eighth, sixteenth
 Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 
@@ -274,6 +287,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
         note:      String(n.note),
         duration:  String(n.duration || "quarter"),
         startBeat: Number(n.startBeat),
+        part:      String(n.part || "melody"),
       };
     });
   }

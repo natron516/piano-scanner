@@ -89,6 +89,14 @@
       bpmDisplay.textContent = bpmSlider.value;
     });
 
+    // Part toggles
+    document.querySelectorAll(".part-cb").forEach(cb => {
+      cb.addEventListener("change", () => {
+        cb.closest(".part-toggle").classList.toggle("active", cb.checked);
+        applyPartFilter();
+      });
+    });
+
     // Score info detection
     document.addEventListener("ocr:detected", e => {
       const d = e.detail;
@@ -245,11 +253,34 @@
     }
     notes.forEach((n, i) => {
       const chip = document.createElement("div");
+      const part = n.part || "melody";
       chip.className  = "note-chip";
       chip.dataset.index = i;
-      chip.innerHTML  = `<span class="pitch">${escHtml(n.note)}</span><span class="dur">${escHtml(n.duration)}</span>`;
+      chip.dataset.part = part;
+      chip.innerHTML  = `<span class="pitch">${escHtml(n.note)}</span><span class="dur">${escHtml(n.duration)}</span><span class="part-label">${part[0].toUpperCase()}</span>`;
       noteVisual.appendChild(chip);
     });
+    applyPartFilter();
+  }
+
+  function getActiveParts() {
+    const parts = [];
+    document.querySelectorAll(".part-cb").forEach(cb => {
+      if (cb.checked) parts.push(cb.value);
+    });
+    return parts;
+  }
+
+  function applyPartFilter() {
+    const active = getActiveParts();
+    noteVisual.querySelectorAll(".note-chip").forEach(chip => {
+      chip.classList.toggle("dimmed", !active.includes(chip.dataset.part));
+    });
+  }
+
+  function getFilteredNotes() {
+    const active = getActiveParts();
+    return currentNotes.filter(n => active.includes(n.part || "melody"));
   }
 
   function highlightNote(index) {
@@ -329,7 +360,7 @@
     if (state === "paused") {
       MidiPlayer.resume();
     } else {
-      MidiPlayer.play(currentNotes, parseInt(bpmSlider.value, 10));
+      MidiPlayer.play(getFilteredNotes(), parseInt(bpmSlider.value, 10));
     }
     btnPlay.classList.add("hidden");
     btnPause.classList.remove("hidden");

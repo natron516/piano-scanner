@@ -255,6 +255,41 @@ footer a:hover { text-decoration: underline; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Part Toggles ────────────────────────────────────────────────────────────── */
+.part-toggles {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.part-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.part-toggle input { display: none; }
+
+.part-toggle.active[data-part="melody"] { background: rgba(108, 99, 255, 0.2); color: var(--accent); border-color: var(--accent); }
+.part-toggle.active[data-part="right"] { background: rgba(61, 214, 140, 0.2); color: var(--green); border-color: var(--green); }
+.part-toggle.active[data-part="left"] { background: rgba(245, 197, 66, 0.2); color: var(--yellow); border-color: var(--yellow); }
+
+.note-chip[data-part="melody"] .pitch { color: var(--accent); }
+.note-chip[data-part="right"] .pitch { color: var(--green); }
+.note-chip[data-part="left"] .pitch { color: var(--yellow); }
+.note-chip.dimmed { opacity: 0.25; }
+
 /* ── Note Visual ────────────────────────────────────────────────────────── */
 .note-visual {
   display: flex;
@@ -300,6 +335,12 @@ footer a:hover { text-decoration: underline; }
   color: var(--text-muted);
   font-size: 0.65rem;
   text-transform: capitalize;
+}
+
+.note-chip .part-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  opacity: 0.5;
 }
 
 .note-chip.active {

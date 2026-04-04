@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Piano Scanner 🎹</title>
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
   <header>
@@ -122,6 +122,18 @@
     <section class="card" id="section-notes">
       <h2><span class="step">2</span> Detected Notes</h2>
 
+      <div class="part-toggles">
+        <label class="part-toggle active" data-part="melody">
+          <input type="checkbox" checked value="melody" class="part-cb" /> 🎵 Melody
+        </label>
+        <label class="part-toggle active" data-part="right">
+          <input type="checkbox" checked value="right" class="part-cb" /> 🤚 Right Hand
+        </label>
+        <label class="part-toggle active" data-part="left">
+          <input type="checkbox" checked value="left" class="part-cb" /> 🤛 Left Hand
+        </label>
+      </div>
+
       <div id="note-visual" class="note-visual" aria-live="polite">
         <p class="placeholder">No notes yet — upload an image or load the demo.</p>
       </div>
@@ -203,8 +215,8 @@
     <p>Piano Scanner · Web MIDI + AI Vision · <a href="README.md" target="_blank">README</a></p>
   </footer>
 
-  <script src="ocr.js?v=8"></script>
-  <script src="midi.js?v=8"></script>
-  <script src="app.js?v=8"></script>
+  <script src="ocr.js?v=9"></script>
+  <script src="midi.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
