@@ -113,7 +113,7 @@ Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-q
         }],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 16384,
         }
       })
     });
@@ -190,17 +190,46 @@ Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-q
     return parseNoteJson(text);
   }
 
-  // ── JSON parser (tolerant of markdown fences) ──────────────────────────
+  // ── JSON parser (tolerant of markdown, extra text, truncation) ─────────
   function parseNoteJson(text) {
-    // Strip markdown code fences if present
     let cleaned = text.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+
+    // Strip markdown code fences
+    cleaned = cleaned.replace(/```(?:json)?\s*/gi, "").replace(/\s*```/gi, "");
     cleaned = cleaned.trim();
 
-    const parsed = JSON.parse(cleaned);
+    // Extract JSON array from any surrounding text
+    const arrayStart = cleaned.indexOf("[");
+    const arrayEnd   = cleaned.lastIndexOf("]");
+    if (arrayStart === -1 || arrayEnd === -1) {
+      throw new Error("No JSON array found in AI response. Got: " + cleaned.substring(0, 200));
+    }
+    cleaned = cleaned.substring(arrayStart, arrayEnd + 1);
+
+    // Fix trailing commas before ]
+    cleaned = cleaned.replace(/,\s*]/g, "]");
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      // Try to salvage truncated JSON by finding last complete object
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (lastBrace > 0) {
+        const salvaged = cleaned.substring(0, lastBrace + 1) + "]";
+        try {
+          parsed = JSON.parse(salvaged);
+          console.warn("[SheetOCR] Salvaged truncated JSON — some notes may be missing.");
+        } catch (e2) {
+          throw new Error("Could not parse AI response: " + e.message);
+        }
+      } else {
+        throw new Error("Could not parse AI response: " + e.message);
+      }
+    }
+
     if (!Array.isArray(parsed)) throw new Error("Expected a JSON array from AI response");
 
-    // Validate & normalize each note
     return parsed.map((n, i) => {
       if (!n.note || n.startBeat === undefined) {
         throw new Error(`Invalid note at index ${i}: missing 'note' or 'startBeat'`);
