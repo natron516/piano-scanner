@@ -111,8 +111,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 
   // ── Gemini Vision API ──────────────────────────────────────────────────
   async function analyzeWithGemini(base64, mimeType, apiKey, prompt) {
-    // Use Gemini 2.5 Pro for better accuracy on complex sheet music
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -303,7 +302,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 Return ONLY the raw JSON object. No markdown fences.`;
 
   async function detectScoreInfo(base64, mimeType, apiKey) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
