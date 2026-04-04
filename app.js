@@ -115,6 +115,7 @@
     btnSettings.addEventListener("click", openSettings);
     btnCloseSettings.addEventListener("click", closeSettings);
     btnSaveSettings.addEventListener("click", saveSettings);
+    providerSelect.addEventListener("change", toggleSettingsFields);
     btnToggleKey.addEventListener("click", () => {
       apiKeyInput.type = apiKeyInput.type === "password" ? "text" : "password";
     });
@@ -397,10 +398,22 @@
   }
 
   // ── Settings ────────────────────────────────────────────────────────────────
+  const backendUrlInput = document.getElementById("backend-url-input");
+  const rowBackendUrl   = document.getElementById("row-backend-url");
+  const rowApiKey       = document.getElementById("row-api-key");
+
   function openSettings() {
-    providerSelect.value = SheetOCR.getProvider();
-    apiKeyInput.value    = SheetOCR.getApiKey();
+    providerSelect.value  = SheetOCR.getProvider();
+    apiKeyInput.value     = SheetOCR.getApiKey();
+    backendUrlInput.value = SheetOCR.getBackendUrl();
+    toggleSettingsFields();
     settingsPanel.classList.remove("hidden");
+  }
+
+  function toggleSettingsFields() {
+    const isOemer = providerSelect.value === "oemer";
+    rowBackendUrl.style.display = isOemer ? "flex" : "none";
+    rowApiKey.style.display     = isOemer ? "none" : "flex";
   }
 
   function closeSettings() {
@@ -410,8 +423,8 @@
   function saveSettings() {
     SheetOCR.setProvider(providerSelect.value);
     SheetOCR.setApiKey(apiKeyInput.value.trim());
+    SheetOCR.setBackendUrl(backendUrlInput.value.trim() || "http://localhost:5111");
     closeSettings();
-    // Update analyze button state
     btnAnalyze.disabled = !currentFile;
   }
 

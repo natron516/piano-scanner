@@ -26,13 +26,16 @@ const SheetOCR = (() => {
   };
 
   // ── Storage keys ───────────────────────────────────────────────────────
-  const STORAGE_KEY     = "piano-scanner-api-key";
-  const STORAGE_PROVIDER = "piano-scanner-provider";
+  const STORAGE_KEY      = "piano-scanner-api-key";
+  const STORAGE_PROVIDER  = "piano-scanner-provider";
+  const STORAGE_BACKEND   = "piano-scanner-backend-url";
 
-  function getApiKey()  { return localStorage.getItem(STORAGE_KEY) || ""; }
-  function setApiKey(k) { localStorage.setItem(STORAGE_KEY, k); }
-  function getProvider() { return localStorage.getItem(STORAGE_PROVIDER) || "gemini"; }
+  function getApiKey()    { return localStorage.getItem(STORAGE_KEY) || ""; }
+  function setApiKey(k)   { localStorage.setItem(STORAGE_KEY, k); }
+  function getProvider()  { return localStorage.getItem(STORAGE_PROVIDER) || "oemer"; }
   function setProvider(p) { localStorage.setItem(STORAGE_PROVIDER, p); }
+  function getBackendUrl() { return localStorage.getItem(STORAGE_BACKEND) || "http://localhost:5111"; }
+  function setBackendUrl(u) { localStorage.setItem(STORAGE_BACKEND, u); }
 
   // ── Demo melody: Amazing Grace (first verse) ───────────────────────────
   const AMAZING_GRACE = [
@@ -364,7 +367,7 @@ tempo should be a number or null.`;
     const apiKey  = getApiKey();
     const provider = getProvider();
 
-    if (!apiKey) {
+    if (provider !== "oemer" && !apiKey) {
       throw new Error("No API key set. Open Settings (⚙️) and enter your API key.");
     }
 
@@ -373,7 +376,7 @@ tempo should be a number or null.`;
 
     // Pass 1: Auto-detect score info (merge with any user overrides)
     let detected = {};
-    if (provider === "gemini") {
+    if (provider === "gemini" && apiKey) {
       detected = await detectScoreInfo(base64, mimeType, apiKey);
     }
     const mergedInfo = {
@@ -385,6 +388,11 @@ tempo should be a number or null.`;
 
     // Emit detected info so UI can display it
     document.dispatchEvent(new CustomEvent("ocr:detected", { detail: { ...mergedInfo, title: detected.title } }));
+
+    if (provider === "oemer") {
+      console.info("[SheetOCR] Using oemer local engine...");
+      return analyzeWithOemer(file);
+    }
 
     console.info(`[SheetOCR] Pass 2: reading notes with ${provider}...`, mergedInfo);
     const prompt = buildPrompt(mergedInfo);
@@ -401,6 +409,44 @@ tempo should be a number or null.`;
     }
   }
 
+  // ── oemer backend ─────────────────────────────────────────────────────
+  async function analyzeWithOemer(file) {
+    const backendUrl = getBackendUrl();
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const response = await fetch(`${backendUrl}/api/analyze`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: "Server error" }));
+      throw new Error(`oemer error: ${err.error || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Emit detected score info
+    if (data.scoreInfo) {
+      document.dispatchEvent(new CustomEvent("ocr:detected", {
+        detail: {
+          key: data.scoreInfo.key,
+          time: data.scoreInfo.timeSignature,
+          tempo: data.scoreInfo.tempo,
+          clef: data.scoreInfo.clef,
+        }
+      }));
+    }
+
+    if (!data.notes || data.notes.length === 0) {
+      throw new Error("oemer found no notes in the image.");
+    }
+
+    console.info(`[SheetOCR] oemer returned ${data.notes.length} notes`);
+    return data.notes;
+  }
+
   // ── Internal helpers ──────────────────────────────────────────────────
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -414,5 +460,6 @@ tempo should be a number or null.`;
   return {
     analyzeImage, demoNotes, noteToMidi, beatsForDuration, DURATION_BEATS,
     getApiKey, setApiKey, getProvider, setProvider,
+    getBackendUrl, setBackendUrl,
   };
 })();

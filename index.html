@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Piano Scanner 🎹</title>
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <header>
@@ -20,17 +20,22 @@
       <div class="setting-row">
         <label for="provider-select">Provider</label>
         <select id="provider-select" class="select">
+          <option value="oemer">🎯 oemer (local OMR engine — best accuracy)</option>
           <option value="gemini">Google Gemini (gemini-2.5-pro)</option>
           <option value="openai">OpenAI (gpt-4o)</option>
           <option value="anthropic">Anthropic (claude-sonnet)</option>
         </select>
       </div>
-      <div class="setting-row">
+      <div class="setting-row" id="row-backend-url">
+        <label for="backend-url-input">Server</label>
+        <input type="text" id="backend-url-input" class="text-input" placeholder="http://localhost:5111" autocomplete="off" />
+      </div>
+      <div class="setting-row" id="row-api-key">
         <label for="api-key-input">API Key</label>
         <input type="password" id="api-key-input" class="text-input" placeholder="Enter your API key" autocomplete="off" />
         <button id="btn-toggle-key" class="btn btn-ghost btn-sm" title="Show/hide key">👁️</button>
       </div>
-      <p class="hint">Key is stored in your browser's localStorage only — never sent to any server except the AI provider.</p>
+      <p class="hint">oemer runs locally on your computer. AI providers require an API key (stored in localStorage only).  </p>
       <div class="btn-row">
         <button id="btn-save-settings" class="btn btn-primary btn-sm">Save</button>
         <button id="btn-close-settings" class="btn btn-ghost btn-sm">Close</button>
@@ -215,8 +220,8 @@
     <p>Piano Scanner · Web MIDI + AI Vision · <a href="README.md" target="_blank">README</a></p>
   </footer>
 
-  <script src="ocr.js?v=10"></script>
-  <script src="midi.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="ocr.js?v=11"></script>
+  <script src="midi.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
