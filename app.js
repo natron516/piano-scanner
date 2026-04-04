@@ -462,8 +462,14 @@
     const chordBpmSlider = document.getElementById('chord-bpm-slider');
     const chordBpmDisplay = document.getElementById('chord-bpm-display');
 
+    const chordRhythmSelect = document.getElementById('chord-rhythm');
+
     chordBpmSlider.addEventListener('input', () => {
       chordBpmDisplay.textContent = chordBpmSlider.value;
+    });
+
+    chordRhythmSelect.addEventListener('change', () => {
+      MidiPlayer.setRhythm(chordRhythmSelect.value);
     });
 
     btnGenerate.addEventListener('click', () => generateChords(false));
@@ -475,7 +481,9 @@
         return;
       }
       const bpm = parseInt(chordBpmSlider.value, 10);
-      MidiPlayer.playChordProgression(currentChords, bpm);
+      const rhythm = chordRhythmSelect.value;
+      MidiPlayer.setRhythm(rhythm);
+      MidiPlayer.playChordProgression(currentChords, bpm, rhythm);
       btnPlayAll.classList.add('hidden');
       btnChordStop.classList.remove('hidden');
     });

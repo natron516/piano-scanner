@@ -883,6 +883,27 @@ footer a:hover { text-decoration: underline; }
 }
 
 /* ── Utility ────────────────────────────────────────────────────────────── */
+
+/* ── Rhythm Selector ──────────────────────────────────────────────────────── */
+.rhythm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+
+.rhythm-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 4.5rem;
+}
+
+.rhythm-select {
+  flex: 1;
+  max-width: 240px;
+}
+
 .hidden { display: none !important; }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */

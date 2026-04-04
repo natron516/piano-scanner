@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Piano Scanner 🎹</title>
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=22" />
 </head>
 <body>
   <header>
@@ -328,6 +328,19 @@
           <input type="range" id="chord-bpm-slider" min="40" max="200" value="80" class="range-input" />
         </div>
 
+        <!-- Rhythm selector -->
+        <div class="rhythm-row">
+          <label for="chord-rhythm" class="rhythm-label">Rhythm</label>
+          <select id="chord-rhythm" class="select select-sm rhythm-select">
+            <option value="block">Block</option>
+            <option value="stride">Stride (Mrs Mills)</option>
+            <option value="boogie">Boogie</option>
+            <option value="arpeggiated">Arpeggiated</option>
+            <option value="syncopated">Syncopated (Gospel)</option>
+            <option value="pulse">Pulse (Worship)</option>
+          </select>
+        </div>
+
         <!-- Chord cards -->
         <div id="chord-cards" class="chord-cards"></div>
 
@@ -342,9 +355,9 @@
     <p>Piano Scanner · Web MIDI + AI Vision · <a href="README.md" target="_blank">README</a></p>
   </footer>
 
-  <script src="ocr.js?v=13"></script>
-  <script src="midi.js?v=13"></script>
-  <script src="chords.js?v=21"></script>
-  <script src="app.js?v=13"></script>
+  <script src="ocr.js?v=22"></script>
+  <script src="midi.js?v=22"></script>
+  <script src="chords.js?v=22"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>
