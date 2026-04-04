@@ -67,9 +67,14 @@ Each chord: {"name":"Cmaj7","notes":["C3","E3","G3","B3"],"roman":"Imaj7","beats
 
 Fields:
 - name: chord symbol (e.g. Cmaj7, Am9, Dm7, G7sus4, Bb/D)
-- notes: 4-5 note piano voicing with octave numbers. Bass note in octave 2-3, upper voices in octave 3-5. Use proper voice leading between chords — move each voice to the nearest available note.
+- notes: 5-6 note piano voicing. Left hand: root in octave 2 + one note in octave 3. Right hand: 3-4 notes in octave 4-5. This creates a bright, full sound. Example for Cmaj7: ["C2","G3","B3","E4","G4","B4"]. For Am7: ["A2","E3","C4","E4","G4"]. NEVER put all notes below octave 4 — that sounds muddy and sad.
 - roman: Roman numeral (e.g. Imaj7, ii7, V7, IVadd9, bVII)
 - beats: 4 (one bar of 4/4)
+
+VOICING RULES:
+- Major chords should sound BRIGHT. Put the 3rd and 5th up in octave 4-5.
+- For happy/epic moods, favor major chords (I, IV, V) over minor chords.
+- For a full sound, double the root an octave apart (e.g. C2 and C3, or C3 and C4).
 
 CRITICAL:
 - Do NOT just repeat I-IV-V-I. Be creative and use the style guide.
