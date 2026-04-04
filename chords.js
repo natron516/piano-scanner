@@ -141,26 +141,34 @@ Example output format:
       .replace(/,\s*]/g, ']')        // trailing commas before ]
       .replace(/,\s*}/g, '}')         // trailing commas before }
       .replace(/[\u201C\u201D]/g, '"') // smart quotes → regular quotes
-      .replace(/[\u2018\u2019]/g, "'") // smart single quotes
-      .replace(/\\'/g, "'")           // escaped single quotes in values
-      .replace(/'([^']*)'/g, '"$1"'); // single-quoted strings → double-quoted
+      .replace(/[\u2018\u2019]/g, "'"); // smart single quotes
     
-    console.info('[ChordMaker] Cleaned JSON:', jsonStr.substring(0, 200));
+    console.info('[ChordMaker] Cleaned JSON (first 500):', jsonStr.substring(0, 500));
 
     let chords;
     try {
       chords = JSON.parse(jsonStr);
     } catch (e) {
+      // Log the area around the error for debugging
+      const posMatch = e.message.match(/position (\d+)/);
+      if (posMatch) {
+        const pos = parseInt(posMatch[1]);
+        console.error('[ChordMaker] JSON error near:', jsonStr.substring(Math.max(0, pos - 30), pos + 30));
+        console.error('[ChordMaker] Char at pos:', JSON.stringify(jsonStr[pos]), 'code:', jsonStr.charCodeAt(pos));
+      }
+      console.error('[ChordMaker] Full JSON string:', jsonStr);
+
       // Try to salvage partial
       const lastBrace = jsonStr.lastIndexOf('}');
       if (lastBrace > 0) {
         try {
           chords = JSON.parse(jsonStr.substring(0, lastBrace + 1) + ']');
+          console.warn('[ChordMaker] Salvaged partial chord data');
         } catch (e2) {
-          throw new Error('Could not parse chord JSON: ' + e.message);
+          throw new Error('Could not parse chord JSON. Check browser console (F12) for details.');
         }
       } else {
-        throw new Error('Could not parse chord JSON: ' + e.message);
+        throw new Error('Could not parse chord JSON. Check browser console (F12) for details.');
       }
     }
 
