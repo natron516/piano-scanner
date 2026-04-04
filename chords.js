@@ -78,6 +78,7 @@ Example output format:
           generationConfig: {
             temperature: 0.85,
             maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 0 },
           }
         })
       }
