@@ -81,25 +81,37 @@ const SheetOCR = (() => {
   }
 
   // ── The prompt sent to the AI vision model ─────────────────────────────
-  const SYSTEM_PROMPT = `You are an expert music transcription assistant. Analyze sheet music images with extreme precision.
+  const SYSTEM_PROMPT = `You are an expert music transcription AI. Your job is to read sheet music from an image and output precise note data.
 
-Rules:
-- Extract EVERY note visible in the image, in order from left to right, top staff first.
-- For chords (multiple notes at the same beat), list each note separately with the same startBeat.
-- Use scientific pitch notation: C4 = middle C. Include sharps (#) and flats (b) as written.
-- Identify note durations from their visual appearance (filled/hollow heads, stems, flags, beams, dots).
-- Track the cumulative beat position. Beat 0 = first note. Quarter note = 1 beat.
-- Account for time signature: 4/4 = 4 beats/measure, 3/4 = 3 beats/measure, 6/8 = 6 eighth-note beats, etc.
-- Handle rests by advancing startBeat without emitting a note.
-- For tied notes, combine into a single longer duration.
-- For dotted notes, use "dotted-half" (3 beats) or "dotted-quarter" (1.5 beats).
-- If key signature has sharps/flats, apply them to all relevant notes unless a natural sign overrides.
+STEP 1 — Analyze the score:
+- Identify the clef (treble/bass), key signature, and time signature FIRST.
+- Note the key signature sharps/flats and apply them throughout unless a natural sign overrides.
+- For grand staff (treble + bass), read treble clef (right hand) first, then bass clef (left hand) separately.
 
-Return ONLY a valid JSON array. No markdown, no explanation, no code fences.
-Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-quarter|quarter|eighth|sixteenth>", "startBeat": <number> }`;
+STEP 2 — Read each measure left to right:
+- Identify each note's pitch using the staff lines and spaces. Remember:
+  - Treble clef lines bottom to top: E4 G4 B4 D5 F5. Spaces: F4 A4 C5 E5.
+  - Bass clef lines bottom to top: G2 B2 D3 F3 A3. Spaces: A2 C3 E3 G3.
+  - Middle C (C4) is one ledger line below treble staff or one above bass staff.
+- Identify duration from note appearance: whole (open, no stem), half (open, stem), quarter (filled, stem), eighth (filled, stem, 1 flag/beam), sixteenth (filled, stem, 2 flags/beams).
+- Dotted notes: "dotted-half" = 3 beats, "dotted-quarter" = 1.5 beats.
+- Rests: do NOT emit a note, but advance startBeat by the rest's duration.
+- Ties: combine tied notes into one longer note.
+
+STEP 3 — Calculate startBeat:
+- Beat 0 = the very first note.
+- Each subsequent note's startBeat = previous note's startBeat + previous note's duration in beats.
+- Quarter = 1 beat, half = 2, whole = 4, eighth = 0.5, sixteenth = 0.25, dotted-half = 3, dotted-quarter = 1.5.
+- For chords (simultaneous notes), all notes share the same startBeat.
+
+OUTPUT FORMAT — Return ONLY a raw JSON array. No markdown fences, no explanation, no thinking text.
+Each element: { "note": "C4", "duration": "quarter", "startBeat": 0 }
+Valid durations: whole, dotted-half, half, dotted-quarter, quarter, eighth, sixteenth
+Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 
   // ── Gemini Vision API ──────────────────────────────────────────────────
   async function analyzeWithGemini(base64, mimeType, apiKey) {
+    // Use Gemini 2.5 Pro for better accuracy on complex sheet music
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: "POST",
@@ -122,8 +134,21 @@ Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-q
       throw new Error(`Gemini API error (${response.status}): ${err}`);
     }
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("No response from Gemini");
+    // Gemini 2.5 thinking models return multiple parts — find the text part with JSON
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let text = "";
+    for (const part of parts) {
+      if (part.text && part.text.includes("[")) {
+        text = part.text;
+        break;
+      }
+    }
+    // Fallback: concatenate all text parts
+    if (!text) {
+      text = parts.map(p => p.text || "").join("\n");
+    }
+    if (!text) throw new Error("No response from Gemini. Raw: " + JSON.stringify(data).substring(0, 300));
+    console.info("[SheetOCR] Gemini raw response length:", text.length);
     return parseNoteJson(text);
   }
 
