@@ -344,114 +344,204 @@ const MidiPlayer = (() => {
     return RHYTHM_NAMES.slice();
   }
 
-  // Split sorted midiNotes into bass (lowest 1-2) and treble (rest)
-  function splitHands(midiNotes) {
-    const sorted = midiNotes.slice().sort((a, b) => a - b);
-    const bassCount = sorted.length >= 4 ? 2 : 1;
-    return {
-      bass:   sorted.slice(0, bassCount),
-      treble: sorted.slice(bassCount),
-      all:    sorted,
-    };
+  // ── Helper functions for authentic piano patterns ─────────────────────
+
+  // Get the root note name from a chord name (e.g. "Cmaj7" -> "C", "F#m9" -> "F#")
+  function chordRoot(chordName) {
+    const match = (chordName || '').match(/^([A-G][b#]?)/);
+    return match ? match[1] : 'C';
+  }
+
+  // Get MIDI number for a note name at a specific octave (e.g. noteAt("C", 2) = 36)
+  function noteAt(name, octave) {
+    return typeof ChordMaker !== 'undefined' ? ChordMaker.noteToMidi(name + octave) : null;
+  }
+
+  // Get semitone intervals above root for chord quality
+  function getChordIntervals(chordName) {
+    if (!chordName) return [0, 4, 7];
+    if (chordName.includes('dim'))  return [0, 3, 6];
+    if (chordName.includes('aug'))  return [0, 4, 8];
+    if (chordName.includes('m7b5')) return [0, 3, 6, 10];
+    if (chordName.includes('m7') || chordName.includes('min7') || chordName.includes('m9') || chordName.includes('m11')) return [0, 3, 7, 10];
+    if (chordName.includes('m') || chordName.includes('min')) return [0, 3, 7];
+    if (chordName.includes('7') || chordName.includes('9') || chordName.includes('13')) return [0, 4, 7, 10];
+    if (chordName.includes('maj7') || chordName.includes('maj9')) return [0, 4, 7, 11];
+    if (chordName.includes('sus4')) return [0, 5, 7];
+    if (chordName.includes('sus2')) return [0, 2, 7];
+    return [0, 4, 7];
   }
 
   // ── Rhythm pattern generators ──────────────────────────────────────────
   // Each returns an array of { offsetMs, notes, velocity, durationMs }
+  // RULES: bass always octave 2 (MIDI 36-47), chord stabs octave 3-4 (48-71),
+  //        right-hand treble octave 4-5 (60-83).
 
-  function patternBlock(midiNotes, beats, msPerBeat) {
-    const holdMs = beats * msPerBeat * 0.92;
+  // block: simple all-notes-on hold
+  function patternBlock(chordName, midiNotes, beats, msPerBeat) {
+    const holdMs = beats * msPerBeat * 0.9;
     return [{ offsetMs: 0, notes: midiNotes, velocity: 75, durationMs: holdMs }];
   }
 
-  function patternStride(midiNotes, beats, msPerBeat) {
-    const { bass, treble } = splitHands(midiNotes);
-    const events = [];
-    const shortHold = msPerBeat * 0.45;
+  // stride: Mrs Mills / pub piano left-hand stride pattern
+  function patternStride(chordName, midiNotes, beats, msPerBeat) {
+    const root      = chordRoot(chordName);
+    const intervals = getChordIntervals(chordName);
+    const rootOct2  = noteAt(root, 2);  // e.g. C2 = 36
+    if (rootOct2 === null) return patternBlock(chordName, midiNotes, beats, msPerBeat);
+
+    // Fifth interval above root (3rd slot in intervals array, else 7 semitones)
+    const fifthInterval = intervals.length >= 3 ? intervals[2] : 7;
+    const fifthOct2     = rootOct2 + fifthInterval;  // e.g. G2 = 43
+
+    // Chord stab: upper tones in octave 3 (skip root, use 3rd and above)
+    const rootOct3  = rootOct2 + 12;                               // e.g. C3 = 48
+    const chordStab = intervals.slice(1).map(i => rootOct3 + i);  // E3, G3, Bb3 ...
+
+    const swingLong  = msPerBeat * 0.6;  // beats 1&3 duration
+    const swingShort = msPerBeat * 0.4;  // beats 2&4 duration
+    const events     = [];
+
     for (let b = 0; b < beats; b++) {
       const offset = b * msPerBeat;
-      if (b % 2 === 0) {
-        // Bass note on downbeats (1, 3)
-        events.push({ offsetMs: offset, notes: bass, velocity: 80, durationMs: shortHold });
+      const beat4  = b % 4;
+      if (beat4 === 0) {
+        // Beat 1: root + octave above (C2 + C3)
+        events.push({ offsetMs: offset, notes: [rootOct2, rootOct2 + 12], velocity: 85, durationMs: swingLong });
+      } else if (beat4 === 1) {
+        // Beat 2: chord stab in middle register (E3+G3+...)
+        events.push({ offsetMs: offset, notes: chordStab.length ? chordStab : midiNotes, velocity: 65, durationMs: swingShort });
+      } else if (beat4 === 2) {
+        // Beat 3: fifth + octave above (G2 + G3)
+        events.push({ offsetMs: offset, notes: [fifthOct2, fifthOct2 + 12], velocity: 85, durationMs: swingLong });
       } else {
-        // Chord stab on upbeats (2, 4)
-        events.push({ offsetMs: offset, notes: treble.length ? treble : midiNotes, velocity: 68, durationMs: shortHold });
+        // Beat 4: chord stab again
+        events.push({ offsetMs: offset, notes: chordStab.length ? chordStab : midiNotes, velocity: 65, durationMs: swingShort });
       }
     }
     return events;
   }
 
-  function patternBoogie(midiNotes, beats, msPerBeat) {
-    const { bass, treble } = splitHands(midiNotes);
-    const root = bass[0] || midiNotes[0];
-    // Walking bass intervals (semitones): root-3rd-5th-6th-octave-6th-5th-3rd
-    const walkIntervals = [0, 4, 7, 9, 12, 9, 7, 4];
-    const eighthMs = msPerBeat / 2;
-    const events = [];
+  // boogie: boogie-woogie walking bass + off-beat chord stabs
+  function patternBoogie(chordName, midiNotes, beats, msPerBeat) {
+    const root      = chordRoot(chordName);
+    const intervals = getChordIntervals(chordName);
+    const rootOct2  = noteAt(root, 2);  // e.g. C2 = 36
+    if (rootOct2 === null) return patternBlock(chordName, midiNotes, beats, msPerBeat);
+
+    // Walking bass intervals (semitones): root-3rd-5th-6th-b7-6th-5th-3rd
+    const walkIntervals = [0, 4, 7, 9, 10, 9, 7, 4];
+
+    // Treble stab: prefer AI voicing filtered to octave 4-5, else build from intervals
+    const rootOct4  = noteAt(root, 4) || 60;  // e.g. C4 = 60
+    const upperRaw  = midiNotes.filter(n => n >= 60 && n <= 83);
+    const stabNotes = upperRaw.length >= 2
+      ? upperRaw
+      : intervals.slice(1).map(i => rootOct4 + i);
+
+    const events       = [];
     const totalEighths = beats * 2;
+
     for (let e = 0; e < totalEighths; e++) {
-      const offset = e * eighthMs;
-      const interval = walkIntervals[e % walkIntervals.length];
-      events.push({ offsetMs: offset, notes: [root + interval], velocity: 72, durationMs: eighthMs * 0.85 });
-      // Chord stab on beats 2 and 4
-      if ((e === 2 || e === 3 || e === 6 || e === 7) && treble.length) {
-        events.push({ offsetMs: offset, notes: treble, velocity: 62, durationMs: eighthMs * 0.7 });
+      const beatNum = Math.floor(e / 2);
+      const subBeat = e % 2;
+      // Swing: first eighth of each beat = 60%, second = 40%
+      const offset   = beatNum * msPerBeat + (subBeat === 0 ? 0 : msPerBeat * 0.6);
+      const duration = (subBeat === 0 ? msPerBeat * 0.6 : msPerBeat * 0.4) * 0.85;
+
+      // Walking bass — slight accent on beats 1 and 3
+      const bassNote = rootOct2 + walkIntervals[e % walkIntervals.length];
+      const isAccent = subBeat === 0 && (beatNum === 0 || beatNum === 2);
+      events.push({ offsetMs: offset, notes: [bassNote], velocity: isAccent ? 85 : 80, durationMs: duration });
+
+      // Chord stab on beats 2 and 4 (beatNum=1 or 3, subBeat=0)
+      if (subBeat === 0 && (beatNum === 1 || beatNum === 3) && stabNotes.length) {
+        events.push({ offsetMs: offset, notes: stabNotes, velocity: 70, durationMs: msPerBeat * 0.4 });
       }
     }
     return events;
   }
 
-  function patternArpeggiated(midiNotes, beats, msPerBeat) {
+  // arpeggiated: bottom-to-top sweep with legato overlap and velocity crescendo
+  function patternArpeggiated(chordName, midiNotes, beats, msPerBeat) {
     const sorted = midiNotes.slice().sort((a, b) => a - b);
-    if (sorted.length === 0) return patternBlock(midiNotes, beats, msPerBeat);
+    if (sorted.length === 0) return patternBlock(chordName, midiNotes, beats, msPerBeat);
     const totalMs  = beats * msPerBeat;
-    const noteStep = totalMs / (sorted.length + 1);
+    const noteStep = totalMs / sorted.length;
     return sorted.map((note, i) => ({
       offsetMs:   i * noteStep,
       notes:      [note],
-      velocity:   65 + (i === 0 ? 10 : 0),
-      durationMs: noteStep * 0.85,
+      velocity:   Math.round(55 + (25 * i / Math.max(1, sorted.length - 1))),  // 55 → 80
+      durationMs: noteStep * 1.5,  // slight overlap for legato feel
     }));
   }
 
-  function patternSyncopated(midiNotes, beats, msPerBeat) {
-    const { bass, treble } = splitHands(midiNotes);
-    const chordNotes = treble.length ? treble : midiNotes;
+  // syncopated: gospel feel with off-beat accents
+  function patternSyncopated(chordName, midiNotes, beats, msPerBeat) {
+    const root     = chordRoot(chordName);
+    const intervals = getChordIntervals(chordName);
+    const rootOct2  = noteAt(root, 2);        // bass root in octave 2
+    const rootOct4  = noteAt(root, 4) || 60;  // e.g. C4 = 60
+
+    // Upper chord tones: prefer AI voicing filtered to octave 4-5, else build from intervals
+    const upperRaw  = midiNotes.filter(n => n >= 60 && n <= 83);
+    const upperStab = upperRaw.length >= 2
+      ? upperRaw
+      : intervals.slice(1).map(i => rootOct4 + i);
+
+    // Full chord: use all midiNotes (AI voicing)
+    const fullChord = midiNotes.length >= 2 ? midiNotes : intervals.map(i => rootOct4 + i);
+    const bassNote  = rootOct2 !== null ? rootOct2 : rootOct4;
+
     const events = [];
-    // Beat 1: full chord
-    events.push({ offsetMs: 0, notes: chordNotes, velocity: 82, durationMs: msPerBeat * 0.8 });
-    // &-of-2 (1.5 beats): syncopated stab
-    events.push({ offsetMs: msPerBeat * 1.5, notes: chordNotes, velocity: 70, durationMs: msPerBeat * 0.4 });
-    // Beat 4: bass anchor
-    if (beats >= 4) {
-      events.push({ offsetMs: msPerBeat * 3, notes: bass.length ? bass : [midiNotes[0]], velocity: 75, durationMs: msPerBeat * 0.6 });
+
+    // Beat 1: full chord, strong
+    events.push({ offsetMs: 0, notes: fullChord, velocity: 85, durationMs: msPerBeat * 0.75 });
+
+    // And-of-2 (1.5 beats from start): syncopated chord stab
+    events.push({ offsetMs: msPerBeat * 1.5, notes: upperStab, velocity: 70, durationMs: msPerBeat * 0.3 });
+
+    if (beats >= 3) {
+      // Beat 3: bass note only
+      events.push({ offsetMs: msPerBeat * 2, notes: [bassNote], velocity: 75, durationMs: msPerBeat * 0.5 });
+
+      // And-of-3 (2.5 beats from start): upper chord stab
+      events.push({ offsetMs: msPerBeat * 2.5, notes: upperStab, velocity: 65, durationMs: msPerBeat * 0.25 });
     }
+
+    if (beats >= 4) {
+      // Beat 4: light ghost chord
+      events.push({ offsetMs: msPerBeat * 3, notes: fullChord, velocity: 45, durationMs: msPerBeat * 0.4 });
+    }
+
     return events;
   }
 
-  function patternPulse(midiNotes, beats, msPerBeat) {
-    const events = [];
-    const eighthMs = msPerBeat / 2;
+  // pulse: driving worship eighth-note pulse with dynamic accents
+  function patternPulse(chordName, midiNotes, beats, msPerBeat) {
+    const velocities   = [70, 45, 55, 45, 65, 45, 55, 45];
+    const eighthMs     = msPerBeat / 2;
     const totalEighths = beats * 2;
+    const events       = [];
     for (let e = 0; e < totalEighths; e++) {
-      const isDownbeat = e % 2 === 0;
       events.push({
         offsetMs:   e * eighthMs,
         notes:      midiNotes,
-        velocity:   isDownbeat ? 75 : 58,
-        durationMs: eighthMs * (isDownbeat ? 0.85 : 0.65),
+        velocity:   velocities[e % velocities.length],
+        durationMs: eighthMs * 0.7,  // slight staccato for that driving feel
       });
     }
     return events;
   }
 
-  function buildRhythmEvents(rhythmName, midiNotes, beats, msPerBeat) {
+  function buildRhythmEvents(rhythmName, chordName, midiNotes, beats, msPerBeat) {
     switch (rhythmName) {
-      case 'stride':      return patternStride(midiNotes, beats, msPerBeat);
-      case 'boogie':      return patternBoogie(midiNotes, beats, msPerBeat);
-      case 'arpeggiated': return patternArpeggiated(midiNotes, beats, msPerBeat);
-      case 'syncopated':  return patternSyncopated(midiNotes, beats, msPerBeat);
-      case 'pulse':       return patternPulse(midiNotes, beats, msPerBeat);
-      default:            return patternBlock(midiNotes, beats, msPerBeat);
+      case 'stride':      return patternStride(chordName, midiNotes, beats, msPerBeat);
+      case 'boogie':      return patternBoogie(chordName, midiNotes, beats, msPerBeat);
+      case 'arpeggiated': return patternArpeggiated(chordName, midiNotes, beats, msPerBeat);
+      case 'syncopated':  return patternSyncopated(chordName, midiNotes, beats, msPerBeat);
+      case 'pulse':       return patternPulse(chordName, midiNotes, beats, msPerBeat);
+      default:            return patternBlock(chordName, midiNotes, beats, msPerBeat);
     }
   }
 
@@ -500,7 +590,7 @@ const MidiPlayer = (() => {
         continue;
       }
 
-      const events = buildRhythmEvents(rhythmName, midiNotes, beats, msPerBeat);
+      const events = buildRhythmEvents(rhythmName, chord.name || '', midiNotes, beats, msPerBeat);
 
       await new Promise(resolve => {
         let settled = false;
