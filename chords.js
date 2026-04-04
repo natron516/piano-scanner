@@ -55,9 +55,11 @@ const ChordMaker = (() => {
 
     const guide = styleGuide[style] || styleGuide.pop;
 
-    const prompt = `You are a world-class songwriter and music theory expert. Generate a ${bars}-bar chord progression in the key of ${key} with a ${mood} mood in ${style} style.
+    const prompt = `You are a world-class songwriter and arranger who has played piano for decades. Generate a ${bars}-bar chord progression in the key of ${key} with a ${mood} mood in ${style} style.
 
 STYLE GUIDE: ${guide}
+
+IMPORTANT: Do NOT always start on the I chord. Real songs start on many different chords. Mix it up — start on IV, vi, ii, V/V, or a pickup chord. Every generation should be DIFFERENT and SURPRISING.
 
 Return ONLY a valid JSON array — no markdown, no explanation, just raw JSON.
 
@@ -73,8 +75,10 @@ CRITICAL:
 - Do NOT just repeat I-IV-V-I. Be creative and use the style guide.
 - Use INVERSIONS for smooth bass lines (e.g. C/E, Am/C, G/B)
 - Vary the rhythm: some chords can last 2 bars (beats:8) or half a bar (beats:2)
-- End on or resolve toward the I chord
-- Make it sound like a REAL song, not a theory exercise${lockedSection}
+- End on or resolve toward the I chord for a sense of completion
+- Make it sound like a REAL song a professional musician would play, not a textbook exercise
+- VARY your starting chord — do NOT always start on I or Imaj7
+- Each generation should feel fresh and different${lockedSection}
 
 Generate exactly ${bars} bars worth of chords (total beats = ${bars * 4}).`;
 
@@ -86,7 +90,7 @@ Generate exactly ${bars} bars worth of chords (total beats = ${bars * 4}).`;
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.85,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             thinkingConfig: { thinkingBudget: 0 },
           }
