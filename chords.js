@@ -77,7 +77,7 @@ Example output format:
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.85,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
           }
         })
       }
