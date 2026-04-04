@@ -152,12 +152,22 @@
   }
 
   // ── Analysis ─────────────────────────────────────────────────────────────
+  function getScoreInfo() {
+    return {
+      key:   document.getElementById("input-key").value,
+      time:  document.getElementById("input-time").value,
+      tempo: document.getElementById("input-tempo").value,
+      clef:  document.getElementById("input-clef").value,
+    };
+  }
+
   async function runAnalysis() {
     if (!currentFile) return;
     setAnalyzing(true);
+    const scoreInfo = getScoreInfo();
     setAnalysisStatus("Sending to AI...", "idle");
     try {
-      const notes = await SheetOCR.analyzeImage(currentFile);
+      const notes = await SheetOCR.analyzeImage(currentFile, scoreInfo);
       loadNotes(notes);
       setAnalysisStatus(notes.length + " notes detected ✓", "ok");
     } catch (err) {
@@ -202,6 +212,12 @@
     currentNotes = notes;
     renderNoteChips(notes);
     jsonEditor.value = JSON.stringify(notes, null, 2);
+    // Sync tempo from score info if set
+    const tempoInput = document.getElementById("input-tempo");
+    if (tempoInput && tempoInput.value) {
+      bpmSlider.value = tempoInput.value;
+      bpmDisplay.textContent = tempoInput.value;
+    }
     jsonStatus.textContent = notes.length + " note(s) loaded";
     jsonStatus.className   = "status-text ok";
     updatePlaybackButtons();

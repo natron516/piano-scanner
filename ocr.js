@@ -110,7 +110,7 @@ Valid durations: whole, dotted-half, half, dotted-quarter, quarter, eighth, sixt
 Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 
   // ── Gemini Vision API ──────────────────────────────────────────────────
-  async function analyzeWithGemini(base64, mimeType, apiKey) {
+  async function analyzeWithGemini(base64, mimeType, apiKey, prompt) {
     // Use Gemini 2.5 Pro for better accuracy on complex sheet music
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
@@ -119,7 +119,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
       body: JSON.stringify({
         contents: [{
           parts: [
-            { text: SYSTEM_PROMPT },
+            { text: prompt },
             { inlineData: { mimeType, data: base64 } }
           ]
         }],
@@ -153,7 +153,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
   }
 
   // ── OpenAI Vision API ──────────────────────────────────────────────────
-  async function analyzeWithOpenAI(base64, mimeType, apiKey) {
+  async function analyzeWithOpenAI(base64, mimeType, apiKey, prompt) {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -165,7 +165,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: SYSTEM_PROMPT },
+            { type: "text", text: prompt },
             { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
           ],
         }],
@@ -184,7 +184,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
   }
 
   // ── Anthropic Vision API ───────────────────────────────────────────────
-  async function analyzeWithAnthropic(base64, mimeType, apiKey) {
+  async function analyzeWithAnthropic(base64, mimeType, apiKey, prompt) {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -199,7 +199,7 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: SYSTEM_PROMPT },
+            { type: "text", text: prompt },
             { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } }
           ],
         }],
@@ -279,8 +279,20 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
     });
   }
 
+  // ── Build context-enhanced prompt ─────────────────────────────────────
+  function buildPrompt(scoreInfo) {
+    let extra = "";
+    if (scoreInfo.key) extra += `\nThe key signature is ${scoreInfo.key} major. Apply the correct sharps/flats throughout.`;
+    if (scoreInfo.time) extra += `\nThe time signature is ${scoreInfo.time}. Each measure has ${scoreInfo.time === "3/4" ? "3" : scoreInfo.time === "6/8" ? "6 eighth-note" : scoreInfo.time.split("/")[0]} beats.`;
+    if (scoreInfo.tempo) extra += `\nThe tempo marking is ${scoreInfo.tempo} BPM (for reference only — does not affect beat positions).`;
+    if (scoreInfo.clef === "treble") extra += `\nThis is a single treble clef staff (melody line only). Read only the treble staff.`;
+    if (scoreInfo.clef === "grand") extra += `\nThis is a grand staff (treble + bass). Read the treble clef (right hand melody) first. Then read bass clef notes with the same startBeat positions for chords/accompaniment.`;
+    if (scoreInfo.clef === "bass") extra += `\nThis is a bass clef staff only.`;
+    return SYSTEM_PROMPT + extra;
+  }
+
   // ── Main analyze function ─────────────────────────────────────────────
-  async function analyzeImage(file) {
+  async function analyzeImage(file, scoreInfo = {}) {
     const apiKey  = getApiKey();
     const provider = getProvider();
 
@@ -293,13 +305,15 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
 
     console.info(`[SheetOCR] Analyzing with ${provider}...`);
 
+    const prompt = buildPrompt(scoreInfo);
+
     switch (provider) {
       case "gemini":
-        return analyzeWithGemini(base64, mimeType, apiKey);
+        return analyzeWithGemini(base64, mimeType, apiKey, prompt);
       case "openai":
-        return analyzeWithOpenAI(base64, mimeType, apiKey);
+        return analyzeWithOpenAI(base64, mimeType, apiKey, prompt);
       case "anthropic":
-        return analyzeWithAnthropic(base64, mimeType, apiKey);
+        return analyzeWithAnthropic(base64, mimeType, apiKey, prompt);
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }

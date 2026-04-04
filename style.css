@@ -503,6 +503,60 @@ footer a:hover { text-decoration: underline; }
   transition: width 0.2s linear;
 }
 
+/* ── Score Info ──────────────────────────────────────────────────────────────── */
+.score-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.score-info h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  color: var(--text);
+}
+
+.score-info h3 .hint {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.score-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.score-info-row label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 50px;
+  color: var(--text-muted);
+}
+
+.select-sm, .input-sm {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+.input-sm {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font);
+  outline: none;
+  max-width: 100px;
+}
+
+.input-sm:focus { border-color: var(--accent); }
+
 /* ── Settings ────────────────────────────────────────────────────────────────── */
 .settings-toggle {
   margin-top: 0.5rem;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Piano Scanner 🎹</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <header>
@@ -61,6 +61,52 @@
       <div id="image-preview-wrap" class="image-preview-wrap hidden">
         <img id="image-preview" src="" alt="Sheet music preview" />
         <button id="btn-clear-image" class="btn btn-ghost btn-sm">✕ Clear</button>
+      </div>
+
+      <div class="score-info">
+        <h3>Score Info <span class="hint">(helps accuracy)</span></h3>
+        <div class="score-info-row">
+          <label for="input-key">Key</label>
+          <select id="input-key" class="select select-sm">
+            <option value="">Auto-detect</option>
+            <option value="C">C major / A minor</option>
+            <option value="G">G major / E minor (1♯)</option>
+            <option value="D">D major / B minor (2♯)</option>
+            <option value="A">A major / F# minor (3♯)</option>
+            <option value="E">E major / C# minor (4♯)</option>
+            <option value="B">B major / G# minor (5♯)</option>
+            <option value="F#">F# major / D# minor (6♯)</option>
+            <option value="F">F major / D minor (1♭)</option>
+            <option value="Bb">B♭ major / G minor (2♭)</option>
+            <option value="Eb">E♭ major / C minor (3♭)</option>
+            <option value="Ab">A♭ major / F minor (4♭)</option>
+            <option value="Db">D♭ major / B♭ minor (5♭)</option>
+          </select>
+        </div>
+        <div class="score-info-row">
+          <label for="input-time">Time</label>
+          <select id="input-time" class="select select-sm">
+            <option value="">Auto-detect</option>
+            <option value="4/4">4/4</option>
+            <option value="3/4">3/4</option>
+            <option value="2/4">2/4</option>
+            <option value="6/8">6/8</option>
+            <option value="2/2">2/2 (cut time)</option>
+            <option value="3/8">3/8</option>
+          </select>
+        </div>
+        <div class="score-info-row">
+          <label for="input-tempo">Tempo</label>
+          <input type="number" id="input-tempo" class="text-input input-sm" placeholder="e.g. 92" min="20" max="300" />
+        </div>
+        <div class="score-info-row">
+          <label for="input-clef">Clef</label>
+          <select id="input-clef" class="select select-sm">
+            <option value="treble">Treble (melody)</option>
+            <option value="grand">Grand Staff (both hands)</option>
+            <option value="bass">Bass only</option>
+          </select>
+        </div>
       </div>
 
       <div class="btn-row">
@@ -157,8 +203,8 @@
     <p>Piano Scanner · Web MIDI + AI Vision · <a href="README.md" target="_blank">README</a></p>
   </footer>
 
-  <script src="ocr.js?v=5"></script>
-  <script src="midi.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="ocr.js?v=6"></script>
+  <script src="midi.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
