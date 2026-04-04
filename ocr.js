@@ -81,46 +81,44 @@ const SheetOCR = (() => {
   }
 
   // ── The prompt sent to the AI vision model ─────────────────────────────
-  const SYSTEM_PROMPT = `You are an expert music transcription AI. Your job is to read sheet music from an image and output precise note data.
+  const SYSTEM_PROMPT = `You are a precise music transcription machine. Read the sheet music image and output a JSON array of notes.
 
-This is a typical hymnal/vocal arrangement with THREE staves per system:
-1. TOP STAFF (treble clef) = Melody / vocal line
-2. MIDDLE STAFF (treble clef) = Piano right hand
-3. BOTTOM STAFF (bass clef) = Piano left hand
+IMPORTANT: Work through the image MEASURE BY MEASURE, left to right, system by system (top to bottom).
 
-If there are only two staves (grand staff), treat them as:
-1. Top = right hand (treble clef)
-2. Bottom = left hand (bass clef)
+For EACH measure, read ALL three staves:
+- melody: top treble clef staff (vocal line, usually has lyrics below it)
+- right: piano right hand (middle treble clef staff)
+- left: piano left hand (bottom bass clef staff)
+If only 2 staves exist, use "right" and "left" only.
 
-STAFF LINE REFERENCE:
-- Treble clef lines bottom to top: E4 G4 B4 D5 F5. Spaces: F4 A4 C5 E5.
-- Bass clef lines bottom to top: G2 B2 D3 F3 A3. Spaces: A2 C3 E3 G3.
-- Middle C (C4) is one ledger line below treble staff or one above bass staff.
+PITCH REFERENCE (memorize these):
+Treble clef: bottom line=E4, then G4, B4, D5, F5. Spaces=F4, A4, C5, E5.
+Bass clef: bottom line=G2, then B2, D3, F3, A3. Spaces=A2, C3, E3, G3.
+Middle C = C4 = ledger line below treble or above bass.
+Notes BELOW the staff use ledger lines counting DOWN from the bottom line.
+Notes ABOVE the staff use ledger lines counting UP from the top line.
 
-RULES:
-- Read each staff separately, measure by measure, left to right.
-- Identify duration from note appearance: whole (open, no stem), half (open, stem), quarter (filled, stem), eighth (filled, stem, 1 flag/beam), sixteenth (2 flags/beams).
-- Dotted notes: "dotted-half" = 3 beats, "dotted-quarter" = 1.5 beats.
-- Rests: do NOT emit a note, but advance startBeat by the rest's duration.
-- Ties: combine tied notes into one longer note.
-- For chords (multiple notes at same beat on same staff), emit each note separately with same startBeat and same part.
-- Apply key signature sharps/flats throughout unless a natural sign overrides.
+DURATION IDENTIFICATION:
+- Whole note: hollow head, no stem (4 beats)
+- Half note: hollow head WITH stem (2 beats)
+- Dotted half: hollow head, stem, dot (3 beats)
+- Quarter note: filled head, stem (1 beat)
+- Dotted quarter: filled head, stem, dot (1.5 beats)
+- Eighth note: filled head, stem, 1 flag or beam (0.5 beats)
+- Sixteenth: filled head, stem, 2 flags or beams (0.25 beats)
 
-CALCULATE startBeat:
-- Beat 0 = the very first beat of the piece.
-- Each measure starts at the cumulative beat count.
-- Quarter = 1 beat, half = 2, whole = 4, eighth = 0.5, sixteenth = 0.25, dotted-half = 3, dotted-quarter = 1.5.
+CRITICAL RULES:
+1. startBeat is CUMULATIVE across the entire piece. Beat 0 = first note.
+2. If a measure has 3 beats (3/4 time), next measure starts 3 beats later.
+3. If a piece starts with a pickup/anacrusis, those notes are before measure 1.
+4. Rests: skip them but advance the startBeat counter.
+5. Ties: combine into one longer note.
+6. Chords: emit each pitch separately with SAME startBeat and part.
+7. Apply key signature accidentals to ALL relevant notes unless natural sign overrides.
 
-OUTPUT FORMAT — Return ONLY a raw JSON array. No markdown fences, no explanation, no thinking.
-Each element: { "note": "C4", "duration": "quarter", "startBeat": 0, "part": "melody" }
-
-The "part" field MUST be one of: "melody", "right", "left"
-- "melody" = top vocal/melody staff
-- "right" = piano right hand (middle staff or top staff if only grand staff)
-- "left" = piano left hand (bass clef, bottom staff)
-
-Valid durations: whole, dotted-half, half, dotted-quarter, quarter, eighth, sixteenth
-Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
+Output ONLY a JSON array. NO markdown. NO explanation. NO code fences. Just the raw [ ... ] array.
+Each element: {"note":"C4","duration":"quarter","startBeat":0,"part":"melody"}
+part must be: "melody", "right", or "left"`;
 
   // ── Gemini Vision API ──────────────────────────────────────────────────
   async function analyzeWithGemini(base64, mimeType, apiKey, prompt) {
@@ -305,15 +303,18 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
   }
 
   // ── Detection prompt (pass 1) ────────────────────────────────────────
-  const DETECT_PROMPT = `Look at this sheet music image. Identify ONLY the following metadata. Return a JSON object (no markdown, no explanation):
-{
-  "key": "<key signature, e.g. C, G, D, F, Bb, Eb, etc.>",
-  "timeSignature": "<e.g. 4/4, 3/4, 6/8>",
-  "tempo": <number or null if not marked>,
-  "clef": "<treble, bass, or grand>",
-  "title": "<title if visible, or null>"
-}
-Return ONLY the raw JSON object. No markdown fences.`;
+  const DETECT_PROMPT = `Look at this sheet music image carefully. Tell me:
+1. How many sharps or flats in the key signature? (0 = C major)
+2. What is the time signature? (top number / bottom number)
+3. Is there a tempo marking? If so, what BPM?
+4. How many staves per system? (2 = grand staff, 3 = vocal + piano)
+5. What is the title if visible?
+
+Return ONLY this JSON (no markdown, no fences, no explanation):
+{"key":"C","timeSignature":"3/4","tempo":92,"clef":"grand","title":"Song Title"}
+For key: C=no accidentals, G=1 sharp, D=2 sharps, F=1 flat, Bb=2 flats, etc.
+For clef: "treble" if 1 staff, "grand" if 2 staves, "vocal+piano" if 3 staves.
+tempo should be a number or null.`;
 
   async function detectScoreInfo(base64, mimeType, apiKey) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
