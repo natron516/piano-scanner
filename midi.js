@@ -1,33 +1,15 @@
 /**
  * midi.js — MIDI Connection & Playback Module
  *
- * Public API (window.MidiPlayer):
- *   MidiPlayer.requestAccess()                → Promise<void>
- *   MidiPlayer.getOutputs()                   → MIDIOutput[]
- *   MidiPlayer.connect(outputId)              → boolean
- *   MidiPlayer.disconnect()                   → void
- *   MidiPlayer.play(notes, bpm)               → void
- *   MidiPlayer.pause()                        → void
- *   MidiPlayer.resume()                       → void
- *   MidiPlayer.stop()                         → void
- *   MidiPlayer.isConnected()                  → boolean
- *   MidiPlayer.getState()                     → PlaybackState
- *
- * Events emitted on document:
- *   midi:outputs-changed   — MIDI device list changed
- *   midi:connected         — device connected { detail: { name } }
- *   midi:disconnected      — device disconnected
- *   midi:note              — note playing { detail: { index, note } }
- *   midi:progress          — { detail: { ratio: 0–1 } }
- *   midi:ended             — playback finished
- *   midi:error             — { detail: { message } }
+ * Supports both Web MIDI API (desktop) and Web Bluetooth BLE MIDI (mobile).
+ * BLE MIDI writes are queued and throttled to prevent disconnects.
  */
 
 const MidiPlayer = (() => {
 
   // ── State ─────────────────────────────────────────────────────────────
   let midiAccess    = null;
-  let output        = null;  // Web MIDI output (desktop) or null for BLE
+  let output        = null;  // Web MIDI output (desktop)
   let bleChar       = null;  // BLE MIDI characteristic (mobile)
   let bleDevice     = null;  // BLE device reference
   let bleConnected  = false;
@@ -39,9 +21,14 @@ const MidiPlayer = (() => {
   let pauseOffset   = 0;
   let noteIndex     = 0;
 
+  // BLE write queue — prevents overwhelming the connection
+  let bleWriteQueue = [];
+  let bleWriting    = false;
+  const BLE_WRITE_DELAY = 20; // ms between BLE writes
+
   // BLE MIDI constants
-  const BLE_MIDI_SERVICE    = "03b80e5a-ede8-4b33-a751-6ce34ec4c700";
-  const BLE_MIDI_CHAR       = "7772e5db-3868-4112-a1a9-f2669d106bf3";
+  const BLE_MIDI_SERVICE = "03b80e5a-ede8-4b33-a751-6ce34ec4c700";
+  const BLE_MIDI_CHAR    = "7772e5db-3868-4112-a1a9-f2669d106bf3";
 
   // ── MIDI access (Web MIDI API — works on desktop) ─────────────────────
   async function requestAccess() {
@@ -65,7 +52,6 @@ const MidiPlayer = (() => {
         list.push({ id: out.id, name: out.name, type: "midi" });
       }
     }
-    // Add BLE option
     if (navigator.bluetooth) {
       list.push({ id: "__ble__", name: "🔵 Scan for Bluetooth MIDI...", type: "ble" });
     }
@@ -77,12 +63,12 @@ const MidiPlayer = (() => {
     if (outputId === "__ble__") {
       return connectBLE();
     }
-    // Standard Web MIDI
     if (!midiAccess) return false;
     const out = midiAccess.outputs.get(outputId);
     if (!out) return false;
     output = out;
     bleChar = null;
+    bleConnected = false;
     emit("midi:connected", { name: out.name });
     return true;
   }
@@ -98,8 +84,6 @@ const MidiPlayer = (() => {
 
       bleDevice = await navigator.bluetooth.requestDevice({
         filters: [{ services: [BLE_MIDI_SERVICE] }],
-        // Also try name filter for MD-BT01
-        // optionalServices: [BLE_MIDI_SERVICE],
       });
 
       emit("midi:status", { message: "Connecting to " + bleDevice.name + "..." });
@@ -107,6 +91,9 @@ const MidiPlayer = (() => {
       bleDevice.addEventListener("gattserverdisconnected", () => {
         bleConnected = false;
         bleChar = null;
+        bleWriteQueue = [];
+        bleWriting = false;
+        stop();
         emit("midi:disconnected");
       });
 
@@ -114,7 +101,10 @@ const MidiPlayer = (() => {
       const service = await server.getPrimaryService(BLE_MIDI_SERVICE);
       bleChar       = await service.getCharacteristic(BLE_MIDI_CHAR);
       bleConnected  = true;
-      output        = null; // Not using Web MIDI output
+      output        = null;
+
+      // Small delay to let BLE connection stabilize
+      await new Promise(r => setTimeout(r, 200));
 
       emit("midi:connected", { name: bleDevice.name || "BLE MIDI Device" });
       return true;
@@ -130,12 +120,14 @@ const MidiPlayer = (() => {
 
   function disconnect() {
     stop();
-    if (bleDevice && bleDevice.gatt.connected) {
+    if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
       bleDevice.gatt.disconnect();
     }
     output = null;
     bleChar = null;
     bleConnected = false;
+    bleWriteQueue = [];
+    bleWriting = false;
     emit("midi:disconnected");
   }
 
@@ -154,19 +146,51 @@ const MidiPlayer = (() => {
 
   function sendMidiBytes(bytes) {
     if (output) {
-      // Web MIDI output
+      // Web MIDI — direct, no throttling needed
       output.send(bytes);
     } else if (bleChar && bleConnected) {
-      // BLE MIDI: prepend header + timestamp bytes
-      // BLE MIDI packet format: [header, timestamp, status, data1, data2]
-      const timestamp = Date.now() & 0x1FFF; // 13-bit ms timestamp
+      // BLE MIDI — queue writes to prevent disconnect
+      const timestamp = Date.now() & 0x1FFF;
       const header    = 0x80 | ((timestamp >> 7) & 0x3F);
       const tsLow     = 0x80 | (timestamp & 0x7F);
       const packet    = new Uint8Array([header, tsLow, ...bytes]);
-      bleChar.writeValueWithoutResponse(packet).catch(err => {
-        console.warn("[BLE MIDI] Write error:", err);
-      });
+      enqueueBleWrite(packet);
     }
+  }
+
+  function enqueueBleWrite(packet) {
+    bleWriteQueue.push(packet);
+    if (!bleWriting) processBleQueue();
+  }
+
+  async function processBleQueue() {
+    if (bleWriting) return;
+    bleWriting = true;
+
+    while (bleWriteQueue.length > 0) {
+      if (!bleChar || !bleConnected) {
+        bleWriteQueue = [];
+        break;
+      }
+      const packet = bleWriteQueue.shift();
+      try {
+        await bleChar.writeValueWithoutResponse(packet);
+      } catch (err) {
+        console.warn("[BLE MIDI] Write error:", err.message);
+        // Don't clear queue on single write failure — try next
+        // But if disconnected, bail out
+        if (!bleConnected) {
+          bleWriteQueue = [];
+          break;
+        }
+      }
+      // Throttle: wait between writes
+      if (bleWriteQueue.length > 0) {
+        await new Promise(r => setTimeout(r, BLE_WRITE_DELAY));
+      }
+    }
+
+    bleWriting = false;
   }
 
   function sendNoteOn(midiNote, velocity = 80) {
@@ -192,7 +216,7 @@ const MidiPlayer = (() => {
 
   // ── Playback ─────────────────────────────────────────────────────────
   function play(noteList, bpmVal) {
-    if (!output) {
+    if (!isConnected()) {
       emit("midi:error", { message: "No MIDI device connected." });
       return;
     }
@@ -201,20 +225,18 @@ const MidiPlayer = (() => {
       return;
     }
 
-    stop(); // reset any existing playback
+    stop();
 
     notes = noteList.slice();
     bpm   = bpmVal || 80;
 
-    // Build schedule: array of { time: ms, note, duration }
-    // time is relative to start (0 ms = first note)
     const totalBeats = notes.reduce((max, n) =>
       Math.max(max, n.startBeat + durationToBeats(n.duration)), 0);
     const totalMs = beatsToMs(totalBeats, bpm);
 
-    noteIndex    = 0;
-    startTime    = performance.now();
-    pauseOffset  = 0;
+    noteIndex     = 0;
+    startTime     = performance.now();
+    pauseOffset   = 0;
     playbackState = "playing";
 
     scheduleNextNote();
@@ -225,19 +247,26 @@ const MidiPlayer = (() => {
     if (playbackState !== "playing") return;
     if (noteIndex >= notes.length) return;
 
-    const n         = notes[noteIndex];
-    const noteMs    = beatsToMs(n.startBeat, bpm);
-    const elapsed   = performance.now() - startTime + pauseOffset;
-    const delay     = Math.max(0, noteMs - elapsed);
-    const durMs     = beatsToMs(durationToBeats(n.duration), bpm) * 0.9; // 10% articulation gap
+    const n       = notes[noteIndex];
+    const noteMs  = beatsToMs(n.startBeat, bpm);
+    const elapsed = performance.now() - startTime + pauseOffset;
+    const delay   = Math.max(0, noteMs - elapsed);
+    const durMs   = beatsToMs(durationToBeats(n.duration), bpm) * 0.9;
 
     scheduleTimer = setTimeout(() => {
       if (playbackState !== "playing") return;
+      if (!isConnected()) {
+        emit("midi:error", { message: "Device disconnected during playback." });
+        stop();
+        return;
+      }
 
       const midi = SheetOCR.noteToMidi(n.note);
       if (midi !== null) {
         sendNoteOn(midi);
-        setTimeout(() => sendNoteOff(midi), durMs);
+        setTimeout(() => {
+          if (isConnected()) sendNoteOff(midi);
+        }, durMs);
       }
 
       emit("midi:note", { index: noteIndex, note: n });
@@ -279,7 +308,6 @@ const MidiPlayer = (() => {
     startTime     = performance.now();
     playbackState = "playing";
 
-    // Find the next note to play based on current offset
     const currentBeat = (pauseOffset / 60_000) * bpm;
     noteIndex = notes.findIndex(n => n.startBeat >= currentBeat - 0.1);
     if (noteIndex === -1) noteIndex = notes.length;
@@ -292,7 +320,8 @@ const MidiPlayer = (() => {
     playbackState = "stopped";
     noteIndex    = 0;
     pauseOffset  = 0;
-    allNotesOff();
+    bleWriteQueue = [];
+    if (isConnected()) allNotesOff();
     emit("midi:progress", { ratio: 0 });
   }
 
