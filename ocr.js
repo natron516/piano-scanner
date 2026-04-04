@@ -100,7 +100,7 @@ Each element: { "note": "<pitch>", "duration": "<whole|dotted-half|half|dotted-q
 
   // ── Gemini Vision API ──────────────────────────────────────────────────
   async function analyzeWithGemini(base64, mimeType, apiKey) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
