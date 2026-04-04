@@ -291,7 +291,61 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
     return SYSTEM_PROMPT + extra;
   }
 
-  // ── Main analyze function ─────────────────────────────────────────────
+  // ── Detection prompt (pass 1) ────────────────────────────────────────
+  const DETECT_PROMPT = `Look at this sheet music image. Identify ONLY the following metadata. Return a JSON object (no markdown, no explanation):
+{
+  "key": "<key signature, e.g. C, G, D, F, Bb, Eb, etc.>",
+  "timeSignature": "<e.g. 4/4, 3/4, 6/8>",
+  "tempo": <number or null if not marked>,
+  "clef": "<treble, bass, or grand>",
+  "title": "<title if visible, or null>"
+}
+Return ONLY the raw JSON object. No markdown fences.`;
+
+  async function detectScoreInfo(base64, mimeType, apiKey) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: DETECT_PROMPT },
+            { inlineData: { mimeType, data: base64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+      })
+    });
+    if (!response.ok) {
+      console.warn("[SheetOCR] Score info detection failed, continuing without.");
+      return {};
+    }
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    let text = "";
+    for (const part of parts) {
+      if (part.text && part.text.includes("{")) { text = part.text; break; }
+    }
+    if (!text) text = parts.map(p => p.text || "").join("\n");
+    try {
+      // Extract JSON object
+      let cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/\s*```/gi, "").trim();
+      const objStart = cleaned.indexOf("{");
+      const objEnd = cleaned.lastIndexOf("}");
+      if (objStart >= 0 && objEnd > objStart) {
+        cleaned = cleaned.substring(objStart, objEnd + 1);
+      }
+      const info = JSON.parse(cleaned);
+      console.info("[SheetOCR] Detected score info:", info);
+      return info;
+    } catch (e) {
+      console.warn("[SheetOCR] Could not parse score info:", e.message);
+      return {};
+    }
+  }
+
+  // ── Main analyze function (two-pass) ─────────────────────────────────
   async function analyzeImage(file, scoreInfo = {}) {
     const apiKey  = getApiKey();
     const provider = getProvider();
@@ -303,9 +357,23 @@ Valid notes: scientific pitch like C4, D#4, Bb3, etc.`;
     const base64   = await fileToBase64(file);
     const mimeType = file.type || "image/jpeg";
 
-    console.info(`[SheetOCR] Analyzing with ${provider}...`);
+    // Pass 1: Auto-detect score info (merge with any user overrides)
+    let detected = {};
+    if (provider === "gemini") {
+      detected = await detectScoreInfo(base64, mimeType, apiKey);
+    }
+    const mergedInfo = {
+      key:   scoreInfo.key   || detected.key   || "",
+      time:  scoreInfo.time  || detected.timeSignature || "",
+      tempo: scoreInfo.tempo || detected.tempo || "",
+      clef:  scoreInfo.clef  || detected.clef  || "treble",
+    };
 
-    const prompt = buildPrompt(scoreInfo);
+    // Emit detected info so UI can display it
+    document.dispatchEvent(new CustomEvent("ocr:detected", { detail: { ...mergedInfo, title: detected.title } }));
+
+    console.info(`[SheetOCR] Pass 2: reading notes with ${provider}...`, mergedInfo);
+    const prompt = buildPrompt(mergedInfo);
 
     switch (provider) {
       case "gemini":

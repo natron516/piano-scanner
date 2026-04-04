@@ -89,6 +89,20 @@
       bpmDisplay.textContent = bpmSlider.value;
     });
 
+    // Score info detection
+    document.addEventListener("ocr:detected", e => {
+      const d = e.detail;
+      const keyEl = document.getElementById("input-key");
+      const timeEl = document.getElementById("input-time");
+      const tempoEl = document.getElementById("input-tempo");
+      const clefEl = document.getElementById("input-clef");
+      if (d.key && !keyEl.value) keyEl.value = d.key;
+      if (d.time && !timeEl.value) timeEl.value = d.time;
+      if (d.tempo && !tempoEl.value) tempoEl.value = d.tempo;
+      if (d.clef && !clefEl.value) clefEl.value = d.clef;
+      setAnalysisStatus(`Detected: ${d.key || "?"} ${d.time || "?"} ${d.tempo ? d.tempo + " BPM" : ""} — Reading notes...`, "idle");
+    });
+
     // Settings
     btnSettings.addEventListener("click", openSettings);
     btnCloseSettings.addEventListener("click", closeSettings);
@@ -165,11 +179,11 @@
     if (!currentFile) return;
     setAnalyzing(true);
     const scoreInfo = getScoreInfo();
-    setAnalysisStatus("Sending to AI...", "idle");
+    setAnalysisStatus("Detecting key, time sig, tempo...", "idle");
     try {
       const notes = await SheetOCR.analyzeImage(currentFile, scoreInfo);
       loadNotes(notes);
-      setAnalysisStatus(notes.length + " notes detected ✓", "ok");
+      setAnalysisStatus(notes.length + " notes detected \u2713", "ok");
     } catch (err) {
       console.error("[Analysis Error]", err);
       setAnalysisStatus("Error: " + err.message, "err");
